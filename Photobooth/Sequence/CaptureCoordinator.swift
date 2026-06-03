@@ -9,6 +9,8 @@ struct SessionResult {
     var montage: URL?
     var stripPDF: URL?
     var stripPNG: URL?
+    /// Animated GIF of the digital (video) strip, shown on the phone share page.
+    var stripGIF: URL?
     /// Decorative frame applied to the strip (nil = none).
     var frameURL: URL?
 }
