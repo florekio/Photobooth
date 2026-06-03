@@ -1,0 +1,29 @@
+name: Photobooth
+options:
+  bundleIdPrefix: com.mapular.photobooth
+  deploymentTarget:
+    macOS: "14.0"
+  createIntermediateGroups: true
+
+settings:
+  base:
+    SWIFT_VERSION: "5.0"
+    MACOSX_DEPLOYMENT_TARGET: "14.0"
+    DEVELOPMENT_TEAM: ""
+    CODE_SIGN_STYLE: Automatic
+    ENABLE_HARDENED_RUNTIME: NO
+
+targets:
+  Photobooth:
+    type: application
+    platform: macOS
+    sources:
+      - path: Photobooth
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.mapular.photobooth
+        INFOPLIST_FILE: Photobooth/Resources/Info.plist
+        CODE_SIGN_ENTITLEMENTS: Photobooth/Resources/Photobooth.entitlements
+        GENERATE_INFOPLIST_FILE: NO
+        ASSETCATALOG_COMPILER_APPICON_NAME: ""
+        COMBINE_HIDPI_IMAGES: YES
