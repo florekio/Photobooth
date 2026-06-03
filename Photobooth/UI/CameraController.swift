@@ -19,6 +19,10 @@ final class CameraController {
     private(set) var previewLayer: CALayer?
     var includeAudio: Bool = true
 
+    /// Embedded HTTP server + Cloudflare quick tunnel that make each session
+    /// shareable via a QR code.
+    let share = ShareService()
+
     private(set) var coordinator: CaptureCoordinator?
     /// Most recent finished session, shown by ResultsView (Phase 3).
     var lastResult: SessionResult?
@@ -125,6 +129,7 @@ final class CameraController {
     /// Open the first available webcam at launch.
     func start() async {
         loadFrames()
+        share.startIfNeeded()
         refreshDevices()
         if let id = selectedDeviceID {
             await select(deviceID: id)
@@ -182,6 +187,11 @@ final class CameraController {
             result.store.saveFrameRef(selectedFrameURL)
         } catch {
             statusMessage = "Photo strip failed: \(error.localizedDescription)"
+        }
+        do {
+            result.stripGIF = try await StripGifBuilder().build(result, frame: selectedFrameURL)
+        } catch {
+            statusMessage = "Strip GIF failed: \(error.localizedDescription)"
         }
         lastResult = result
     }
