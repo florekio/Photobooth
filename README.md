@@ -35,6 +35,8 @@ a montage video and a photo strip.
   `.xcodeproj` is generated from `project.yml`, not checked in)
 - [ffmpeg](https://ffmpeg.org/) — `brew install ffmpeg` (used to stitch the montage;
   `ffprobe` ships with it)
+- [cloudflared](https://github.com/cloudflare/cloudflared) — `brew install cloudflared`
+  (used for the QR-code sharing tunnel; see [Sharing](#sharing))
 
 ## Hardware
 
@@ -95,7 +97,47 @@ Each session writes to a timestamped folder:
   montage.mp4                   # stitched: before → photo freeze → after, ×4
   strip.pdf                     # print-ready vertical photo strip
   strip.png                     # same strip as an image
+  strip.gif                     # animated "video strip" (4 looping cells) for the share page
 ```
+
+## Sharing
+
+When a session finishes, the results screen shows a **QR code**. A guest scans it
+with their phone and lands on a mobile page that shows the **animated video
+strip** (a looping GIF of the 4-cell strip), plays the full montage, and offers
+**Download** and a native **Share** button (the phone's own share sheet via the
+Web Share API). No accounts, no cloud storage, no cost.
+
+How it works (all free):
+
+```
+phone ── scans QR ──▶ https://<random>.trycloudflare.com/s/<session>
+                                   │  (Cloudflare Quick Tunnel — no account)
+                                   ▼
+                      cloudflared ──▶ 127.0.0.1:8088   (embedded HTTP server)
+                                   ▼
+                      ~/Pictures/Photobooth/<session>/  (strip.png + montage.mp4)
+```
+
+- **`ShareServer`** (`Sharing/ShareServer.swift`) is a tiny dependency-free
+  HTTP/1.1 server bound to **loopback only** (`127.0.0.1`). It serves the mobile
+  page plus `strip.png` and `montage.mp4`, with HTTP **range/byte-serving** so
+  iOS Safari can stream and seek the video. Loopback-only binding means no macOS
+  firewall or local-network permission prompts.
+- **`TunnelController`** (`Sharing/TunnelController.swift`) runs
+  `cloudflared tunnel --url http://127.0.0.1:8088` and scrapes the public
+  `https://*.trycloudflare.com` URL from its output — a Cloudflare **Quick
+  Tunnel** needs no Cloudflare account or login.
+- **`ShareService`** (`Sharing/ShareService.swift`) starts both at app launch and
+  builds each session's public URL; **`QRCode`** renders it locally via CoreImage.
+
+The tunnel and its URL are spun up once per app launch (the public hostname
+changes each launch). If `cloudflared` isn't installed, the results screen says
+so and the photos remain saved locally — capture is never affected.
+
+> **Same Mac, anywhere phone.** Because delivery goes through Cloudflare's tunnel,
+> guests can scan and download over cellular — they don't need to be on the
+> booth's WiFi. The Mac just needs an internet connection.
 
 ## Architecture
 
@@ -122,6 +164,16 @@ Photobooth/
     MontageBuilder.swift             Shells out to ffmpeg: normalizes each segment
                                      to identical params, then concat-copies them
     PhotoStripRenderer.swift         Core Graphics → PDF + PNG vertical strip
+    StripGifBuilder.swift            ffmpeg → animated GIF of the 4-cell video strip
+
+  Sharing/
+    ShareServer.swift                Loopback HTTP server: mobile page + strip/
+                                     montage with HTTP range support
+    SharePage.swift                  The mobile share page (HTML + Web Share API)
+    TunnelController.swift           Runs cloudflared Quick Tunnel, scrapes URL
+    ShareService.swift               @Observable: starts server+tunnel, per-
+                                     session public URL
+    QRCode.swift                     CoreImage QR generation (local, offline)
 
   UI/
     CameraController.swift           @Observable owner of the active source,
@@ -130,7 +182,7 @@ Photobooth/
                                      overlays + Space/Esc hotkeys
     CameraPreviewView.swift          NSViewRepresentable hosting the preview layer
     SourcePickerView.swift           Camera picker
-    ResultsView.swift                Montage playback + strip preview + actions
+    ResultsView.swift                QR-first share screen + operator actions
 
   Resources/
     Info.plist                       Camera/microphone usage descriptions
@@ -198,5 +250,6 @@ number from the CI run number.
 - [x] Live webcam preview + device picker
 - [x] Automatic 4-shot capture sequence with countdown, before/after clips
 - [x] Montage MP4 (ffmpeg) + print-ready PDF/PNG photo strip
+- [x] QR-code sharing (loopback server + free Cloudflare Quick Tunnel)
 - [ ] Nikon D5500 via libgphoto2 (full-res stills + liveview-based clips)
 - [ ] Direct-to-printer output

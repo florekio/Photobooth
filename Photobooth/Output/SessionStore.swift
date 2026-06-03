@@ -55,6 +55,7 @@ struct SessionStore {
     var montageURL: URL { root.appendingPathComponent("montage.mp4") }
     var stripPDFURL: URL { root.appendingPathComponent("strip.pdf") }
     var stripPNGURL: URL { root.appendingPathComponent("strip.png") }
+    var stripGIFURL: URL { root.appendingPathComponent("strip.gif") }
     var frameRefURL: URL { root.appendingPathComponent("frame.txt") }
 
     /// Persist which frame was used, so the gallery can re-apply it.
