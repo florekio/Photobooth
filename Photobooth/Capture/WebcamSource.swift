@@ -19,6 +19,9 @@ final class WebcamSource: NSObject, CaptureSource {
 
     private let device: AVCaptureDevice
     private let includeAudio: Bool
+    /// Mirror the feed horizontally (selfie/"mirror" photobooth feel). Applied to
+    /// the preview, the stills, and the recorded clips so they all match.
+    private let mirrored: Bool
     private let session = AVCaptureSession()
     private let videoOutput = AVCaptureVideoDataOutput()
     private let audioOutput = AVCaptureAudioDataOutput()
@@ -38,11 +41,12 @@ final class WebcamSource: NSObject, CaptureSource {
     private var sessionStarted = false
     private var isRecording = false
 
-    init(device: AVCaptureDevice, includeAudio: Bool) {
+    init(device: AVCaptureDevice, includeAudio: Bool, mirrored: Bool = true) {
         self.device = device
         self.id = device.uniqueID
         self.displayName = device.localizedName
         self.includeAudio = includeAudio
+        self.mirrored = mirrored
         super.init()
     }
 
@@ -89,6 +93,14 @@ final class WebcamSource: NSObject, CaptureSource {
         videoOutput.setSampleBufferDelegate(self, queue: sampleQueue)
         if session.canAddOutput(videoOutput) { session.addOutput(videoOutput) }
 
+        // Mirror the captured frames so the saved still + clips match the
+        // mirrored preview. The connection exists only after the output is added.
+        if mirrored, let conn = videoOutput.connection(with: .video),
+           conn.isVideoMirroringSupported {
+            conn.automaticallyAdjustsVideoMirroring = false
+            conn.isVideoMirrored = true
+        }
+
         // Audio data output
         if includeAudio {
             audioOutput.setSampleBufferDelegate(self, queue: sampleQueue)
@@ -99,6 +111,10 @@ final class WebcamSource: NSObject, CaptureSource {
     func makePreviewLayer() -> CALayer {
         let layer = AVCaptureVideoPreviewLayer(session: session)
         layer.videoGravity = .resizeAspectFill
+        if mirrored, let conn = layer.connection, conn.isVideoMirroringSupported {
+            conn.automaticallyAdjustsVideoMirroring = false
+            conn.isVideoMirrored = true
+        }
         return layer
     }
 
