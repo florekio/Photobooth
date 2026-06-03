@@ -37,6 +37,19 @@ struct BoothView: View {
 
             if !controller.isCapturing && controller.lastResult == nil {
                 VStack {
+                    HStack {
+                        Spacer()
+                        Button {
+                            controller.showingGallery = true
+                        } label: {
+                            Label("Past sessions", systemImage: "photo.stack")
+                                .font(.callout.weight(.semibold))
+                                .foregroundStyle(.white)
+                                .padding(.horizontal, 14).padding(.vertical, 8)
+                                .background(.black.opacity(0.55), in: Capsule())
+                        }
+                        .buttonStyle(.plain)
+                    }
                     Spacer()
                     HStack {
                         SourcePickerView(controller: controller)
@@ -49,8 +62,13 @@ struct BoothView: View {
                                 .background(.black.opacity(0.55), in: Capsule())
                         }
                     }
-                    .padding(24)
                 }
+                .padding(24)
+            }
+
+            if controller.showingGallery {
+                GalleryView { controller.showingGallery = false }
+                    .transition(.opacity)
             }
         }
         .task { await controller.start() }
@@ -87,6 +105,11 @@ struct BoothView: View {
     private func installKeyMonitor() {
         guard keyMonitor == nil else { return }
         keyMonitor = NSEvent.addLocalMonitorForEvents(matching: .keyDown) { event in
+            // Don't drive capture while the gallery is open; let Esc close it.
+            if controller.showingGallery {
+                if event.keyCode == 53 { controller.showingGallery = false; return nil }
+                return event
+            }
             switch event.keyCode {
             case 49, 36: // Space, Return
                 if !controller.isCapturing { controller.startCapture() }

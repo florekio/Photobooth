@@ -4,109 +4,116 @@ import ImageIO
 import AppKit
 import UniformTypeIdentifiers
 
-/// Renders the 4 photos into a classic vertical photo-strip, as both a
-/// print-ready PDF and a PNG. Pure Core Graphics — no external tools.
+/// Renders the photos into the classic vertical strip (see `StripLayout`), as a
+/// print-ready PDF and a PNG. An optional `frame` PNG is composited on top — its
+/// transparent windows reveal the photos, its opaque areas decorate the strip.
+///
+/// Drawing happens in `StripLayout` design coordinates in Core Graphics' native
+/// bottom-left space; each output just applies a uniform scale.
 struct PhotoStripRenderer {
-    var photoWidth: CGFloat = 620
-    var margin: CGFloat = 28
-    var gap: CGFloat = 18
-    var footerHeight: CGFloat = 90
-    var cornerRadius: CGFloat = 10
+    /// PNG super-sampling factor over the 600×1800 design (→ 1200×3600).
+    var pngScale: CGFloat = 2
+    /// Print size for the PDF, in points (2×6" at 72pt/in).
+    var pdfSize = CGSize(width: 144, height: 432)
 
     struct Output { let pdf: URL; let png: URL }
 
-    func render(_ result: SessionResult) throws -> Output {
+    func render(_ result: SessionResult, frame: URL? = nil) throws -> Output {
         let images = result.photos.compactMap { loadCGImage($0) }
         guard !images.isEmpty else { throw CaptureError.writerFailed("no photos to render") }
+        let frameImage = frame.flatMap { loadCGImage($0) }
 
-        // Uniform cell height from the tallest aspect ratio, so the strip is tidy.
-        let cellHeights: [CGFloat] = images.map { photoWidth * CGFloat($0.height) / CGFloat($0.width) }
-        let cellHeight: CGFloat = cellHeights.max() ?? (photoWidth * 9.0 / 16.0)
-
-        let count = CGFloat(images.count)
-        let totalWidth: CGFloat = photoWidth + margin * 2
-        let photosHeight: CGFloat = count * cellHeight
-        let gapsHeight: CGFloat = (count - 1) * gap
-        let totalHeight: CGFloat = margin + photosHeight + gapsHeight + footerHeight + margin
-        let size = CGSize(width: totalWidth, height: totalHeight)
-
-        let pdf = try renderPDF(images: images, size: size, cellHeight: cellHeight, to: result.store.stripPDFURL)
-        let png = try renderPNG(images: images, size: size, cellHeight: cellHeight, to: result.store.stripPNGURL)
+        let pdf = try renderPDF(images: images, frame: frameImage, footer: footerText(result), to: result.store.stripPDFURL)
+        let png = try renderPNG(images: images, frame: frameImage, footer: footerText(result), to: result.store.stripPNGURL)
         return Output(pdf: pdf, png: png)
     }
 
-    // MARK: - Drawing (CG origin is bottom-left)
+    // MARK: - Drawing (design coordinates, bottom-left origin)
 
-    private func draw(in ctx: CGContext, images: [CGImage], size: CGSize, cellHeight: CGFloat) {
-        ctx.setFillColor(NSColor.white.cgColor)
-        ctx.fill(CGRect(origin: .zero, size: size))
-
-        var y = size.height - margin - cellHeight
-        for image in images {
-            let rect = CGRect(x: margin, y: y, width: photoWidth, height: cellHeight)
-            ctx.saveGState()
-            let path = CGPath(roundedRect: rect, cornerWidth: cornerRadius, cornerHeight: cornerRadius, transform: nil)
-            ctx.addPath(path)
-            ctx.clip()
-            // Aspect-fill the cell.
-            let aspect = CGFloat(image.width) / CGFloat(image.height)
-            var drawRect = rect
-            if aspect > rect.width / rect.height {
-                let w = rect.height * aspect
-                drawRect = CGRect(x: rect.midX - w / 2, y: rect.minY, width: w, height: rect.height)
-            } else {
-                let h = rect.width / aspect
-                drawRect = CGRect(x: rect.minX, y: rect.midY - h / 2, width: rect.width, height: h)
-            }
-            ctx.draw(image, in: drawRect)
-            ctx.restoreGState()
-            y -= (cellHeight + gap)
-        }
-
-        drawFooter(in: ctx, size: size)
+    /// Convert a top-left `StripLayout` rect into bottom-left design space.
+    private func bl(_ r: CGRect) -> CGRect {
+        CGRect(x: r.minX, y: StripLayout.designSize.height - r.maxY, width: r.width, height: r.height)
     }
 
-    private func drawFooter(in ctx: CGContext, size: CGSize) {
-        let df = DateFormatter()
-        df.dateStyle = .medium
-        df.timeStyle = .short
-        let text = "Photobooth · \(df.string(from: Date()))"
+    private func draw(in ctx: CGContext, images: [CGImage], frame: CGImage?, footer: String) {
+        let canvas = CGRect(origin: .zero, size: StripLayout.designSize)
 
+        // White base (shows through any non-photo transparent areas of a frame).
+        ctx.setFillColor(NSColor.white.cgColor)
+        ctx.fill(canvas)
+
+        for (i, image) in images.prefix(StripLayout.count).enumerated() {
+            let rect = bl(StripLayout.cellRect(i))
+            ctx.saveGState()
+            let path = CGPath(roundedRect: rect, cornerWidth: StripLayout.cornerRadius,
+                              cornerHeight: StripLayout.cornerRadius, transform: nil)
+            ctx.addPath(path)
+            ctx.clip()
+            ctx.draw(image, in: aspectFill(image: image, into: rect))
+            ctx.restoreGState()
+        }
+
+        if let frame {
+            // Scales to fill the strip; 1:3 frames map 1:1.
+            ctx.draw(frame, in: canvas)
+        } else {
+            drawFooter(in: ctx, text: footer)
+        }
+    }
+
+    /// Aspect-fill `image` into `rect` (centered, cropped).
+    private func aspectFill(image: CGImage, into rect: CGRect) -> CGRect {
+        let aspect = CGFloat(image.width) / CGFloat(image.height)
+        if aspect > rect.width / rect.height {
+            let w = rect.height * aspect
+            return CGRect(x: rect.midX - w / 2, y: rect.minY, width: w, height: rect.height)
+        } else {
+            let h = rect.width / aspect
+            return CGRect(x: rect.minX, y: rect.midY - h / 2, width: rect.width, height: h)
+        }
+    }
+
+    private func drawFooter(in ctx: CGContext, text: String) {
         let attrs: [NSAttributedString.Key: Any] = [
-            .font: NSFont.systemFont(ofSize: 22, weight: .semibold),
+            .font: NSFont.systemFont(ofSize: 30, weight: .semibold),
             .foregroundColor: NSColor.black
         ]
-        let attr = NSAttributedString(string: text, attributes: attrs)
-        let line = CTLineCreateWithAttributedString(attr)
+        let line = CTLineCreateWithAttributedString(NSAttributedString(string: text, attributes: attrs))
         let bounds = CTLineGetImageBounds(line, ctx)
-        ctx.textPosition = CGPoint(x: (size.width - bounds.width) / 2, y: margin + footerHeight / 2 - bounds.height / 2)
+        let footer = bl(StripLayout.footerRect)
+        ctx.textPosition = CGPoint(x: (StripLayout.designSize.width - bounds.width) / 2,
+                                   y: footer.midY - bounds.height / 2)
         CTLineDraw(line, ctx)
     }
 
-    private func renderPDF(images: [CGImage], size: CGSize, cellHeight: CGFloat, to url: URL) throws -> URL {
-        var mediaBox = CGRect(origin: .zero, size: size)
+    // MARK: - Outputs
+
+    private func renderPDF(images: [CGImage], frame: CGImage?, footer: String, to url: URL) throws -> URL {
+        var mediaBox = CGRect(origin: .zero, size: pdfSize)
         guard let consumer = CGDataConsumer(url: url as CFURL),
               let ctx = CGContext(consumer: consumer, mediaBox: &mediaBox, nil) else {
             throw CaptureError.writerFailed("could not create PDF context")
         }
         ctx.beginPDFPage(nil)
-        draw(in: ctx, images: images, size: size, cellHeight: cellHeight)
+        ctx.scaleBy(x: pdfSize.width / StripLayout.designSize.width,
+                    y: pdfSize.height / StripLayout.designSize.height)
+        draw(in: ctx, images: images, frame: frame, footer: footer)
         ctx.endPDFPage()
         ctx.closePDF()
         return url
     }
 
-    private func renderPNG(images: [CGImage], size: CGSize, cellHeight: CGFloat, to url: URL) throws -> URL {
-        let scale: CGFloat = 2 // crisp for printing
-        let pxW = Int(size.width * scale), pxH = Int(size.height * scale)
+    private func renderPNG(images: [CGImage], frame: CGImage?, footer: String, to url: URL) throws -> URL {
+        let pxW = Int(StripLayout.designSize.width * pngScale)
+        let pxH = Int(StripLayout.designSize.height * pngScale)
         guard let ctx = CGContext(
             data: nil, width: pxW, height: pxH, bitsPerComponent: 8, bytesPerRow: 0,
             space: CGColorSpace(name: CGColorSpace.sRGB)!,
             bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue) else {
             throw CaptureError.writerFailed("could not create bitmap context")
         }
-        ctx.scaleBy(x: scale, y: scale)
-        draw(in: ctx, images: images, size: size, cellHeight: cellHeight)
+        ctx.scaleBy(x: pngScale, y: pngScale)
+        draw(in: ctx, images: images, frame: frame, footer: footer)
         guard let image = ctx.makeImage(),
               let dest = CGImageDestinationCreateWithURL(url as CFURL, UTType.png.identifier as CFString, 1, nil) else {
             throw CaptureError.writerFailed("could not finalize PNG")
@@ -114,6 +121,11 @@ struct PhotoStripRenderer {
         CGImageDestinationAddImage(dest, image, nil)
         CGImageDestinationFinalize(dest)
         return url
+    }
+
+    private func footerText(_ result: SessionResult) -> String {
+        let df = DateFormatter(); df.dateStyle = .medium; df.timeStyle = .short
+        return "Photobooth · \(df.string(from: result.store.startedAt))"
     }
 
     private func loadCGImage(_ url: URL) -> CGImage? {

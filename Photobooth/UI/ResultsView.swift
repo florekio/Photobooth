@@ -7,16 +7,18 @@ struct ResultsView: View {
     @Bindable var controller: CameraController
     let result: SessionResult
 
-    private let stripHeight: CGFloat = 540
+    private let stripHeight: CGFloat = 560
 
     var body: some View {
         ZStack {
             Color.black.opacity(0.9).ignoresSafeArea()
 
-            VStack(spacing: 20) {
+            VStack(spacing: 18) {
                 Text("Your photobooth strip")
                     .font(.largeTitle.weight(.bold))
                     .foregroundStyle(.white)
+
+                FramePickerView(controller: controller)
 
                 HStack(alignment: .top, spacing: 40) {
                     digitalPanel
@@ -33,7 +35,7 @@ struct ResultsView: View {
     private var digitalPanel: some View {
         VStack(spacing: 8) {
             Text("Digital strip (video)").font(.headline).foregroundStyle(.white.opacity(0.8))
-            DigitalStripView(result: result, height: stripHeight)
+            DigitalStripView(result: result, frameURL: controller.selectedFrameURL, height: stripHeight)
         }
     }
 

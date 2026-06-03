@@ -1,5 +1,13 @@
 import SwiftUI
 import AVFoundation
+import AppKit
+
+/// A selectable decorative frame for the strip. `url == nil` means "no frame".
+struct FrameOption: Identifiable, Hashable {
+    let id: String
+    let name: String
+    let url: URL?
+}
 
 /// UI-facing owner of the active capture source and device selection.
 @Observable
@@ -16,9 +24,62 @@ final class CameraController {
     var lastResult: SessionResult?
 
     var statusMessage: String?
+    var showingGallery = false
+
+    // Frames
+    private(set) var frameOptions: [FrameOption] = [FrameOption(id: "none", name: "No frame", url: nil)]
+    var selectedFrameID: String = "none"
+    var selectedFrameURL: URL? { frameOptions.first(where: { $0.id == selectedFrameID })?.url }
 
     var isCapturing: Bool { coordinator?.isRunning ?? false }
     var shotCount: Int { coordinator?.config.shots ?? 4 }
+
+    /// Discover bundled `frame-*.png` templates plus the built-in "No frame".
+    func loadFrames() {
+        var options: [FrameOption] = [FrameOption(id: "none", name: "No frame", url: nil)]
+        let urls = Bundle.main.urls(forResourcesWithExtension: "png", subdirectory: nil) ?? []
+        for url in urls.sorted(by: { $0.lastPathComponent < $1.lastPathComponent })
+        where url.lastPathComponent.hasPrefix("frame-") {
+            let name = url.deletingPathExtension().lastPathComponent
+                .replacingOccurrences(of: "frame-", with: "").capitalized
+            options.append(FrameOption(id: url.lastPathComponent, name: name, url: url))
+        }
+        frameOptions = options
+    }
+
+    /// Pick a frame; if a result is already showing, re-render its printable
+    /// strip so the change is visible immediately.
+    func selectFrame(_ id: String) {
+        selectedFrameID = id
+        rerenderStripIfNeeded()
+    }
+
+    /// Let the user choose any PNG as a custom frame.
+    func chooseCustomFrame() {
+        let panel = NSOpenPanel()
+        panel.allowedContentTypes = [.png]
+        panel.allowsMultipleSelection = false
+        panel.message = "Choose a frame PNG (ideal size 1200×3600, transparent windows)."
+        guard panel.runModal() == .OK, let url = panel.url else { return }
+        let option = FrameOption(id: url.path, name: url.deletingPathExtension().lastPathComponent, url: url)
+        frameOptions.removeAll { $0.id == option.id }
+        frameOptions.append(option)
+        selectFrame(option.id)
+    }
+
+    private func rerenderStripIfNeeded() {
+        guard var result = lastResult else { return }
+        do {
+            let strip = try PhotoStripRenderer().render(result, frame: selectedFrameURL)
+            result.stripPDF = strip.pdf
+            result.stripPNG = strip.png
+            result.frameURL = selectedFrameURL
+            result.store.saveFrameRef(selectedFrameURL)
+            lastResult = result
+        } catch {
+            statusMessage = "Photo strip failed: \(error.localizedDescription)"
+        }
+    }
 
     func refreshDevices() {
         var found = DeviceDiscovery.webcams()
@@ -63,6 +124,7 @@ final class CameraController {
 
     /// Open the first available webcam at launch.
     func start() async {
+        loadFrames()
         refreshDevices()
         if let id = selectedDeviceID {
             await select(deviceID: id)
@@ -113,9 +175,11 @@ final class CameraController {
             statusMessage = "Montage failed: \(error.localizedDescription)"
         }
         do {
-            let strip = try PhotoStripRenderer().render(result)
+            let strip = try PhotoStripRenderer().render(result, frame: selectedFrameURL)
             result.stripPDF = strip.pdf
             result.stripPNG = strip.png
+            result.frameURL = selectedFrameURL
+            result.store.saveFrameRef(selectedFrameURL)
         } catch {
             statusMessage = "Photo strip failed: \(error.localizedDescription)"
         }

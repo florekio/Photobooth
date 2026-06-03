@@ -9,6 +9,8 @@ struct SessionResult {
     var montage: URL?
     var stripPDF: URL?
     var stripPNG: URL?
+    /// Decorative frame applied to the strip (nil = none).
+    var frameURL: URL?
 }
 
 /// Drives the automatic 4-shot sequence:

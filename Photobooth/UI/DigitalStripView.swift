@@ -7,48 +7,45 @@ import AppKit
 /// before + after clips. Sits next to the printable strip and matches its style.
 struct DigitalStripView: View {
     let result: SessionResult
-    /// Total height; the strip computes its own width from this + the cell aspect.
-    var height: CGFloat = 540
+    /// Optional decorative frame PNG overlaid on top (windows over the cells).
+    var frameURL: URL?
+    /// Total height; width follows the fixed 1:3 strip ratio.
+    var height: CGFloat = 600
 
-    // Screen-point styling, mirroring PhotoStripRenderer's proportions.
-    private let margin: CGFloat = 16
-    private let gap: CGFloat = 10
-    private let footerHeight: CGFloat = 38
-    private let corner: CGFloat = 8
-
-    /// Cell aspect (width / height), taken from the captured photo so the digital
-    /// and printable strips line up.
-    private var aspect: CGFloat {
-        guard let first = result.photos.first,
-              let img = NSImage(contentsOf: first), img.size.height > 0 else { return 4.0 / 3.0 }
-        return img.size.width / img.size.height
+    private var stripWidth: CGFloat { height * StripLayout.stripAspect }
+    private var count: Int { min(result.photos.count, StripLayout.count) }
+    private var corner: CGFloat {
+        StripLayout.cornerRadius / StripLayout.designSize.width * stripWidth
     }
-
-    private var count: Int { result.photos.count }
-
-    private var cellHeight: CGFloat {
-        let available = height - margin * 2 - footerHeight - CGFloat(count - 1) * gap
-        return max(0, available / CGFloat(count))
-    }
-    private var cellWidth: CGFloat { cellHeight * aspect }
-    private var stripWidth: CGFloat { cellWidth + margin * 2 }
 
     var body: some View {
-        VStack(spacing: gap) {
+        ZStack(alignment: .topLeading) {
+            Color.white
+
             ForEach(0..<count, id: \.self) { i in
+                let n = StripLayout.normalizedCellRect(i)
                 LoopingVideoCell(urls: clipURLs(for: i))
-                    .frame(width: cellWidth, height: cellHeight)
+                    .frame(width: n.width * stripWidth, height: n.height * height)
                     .clipShape(RoundedRectangle(cornerRadius: corner))
+                    .position(x: (n.minX + n.width / 2) * stripWidth,
+                              y: (n.minY + n.height / 2) * height)
             }
-            Spacer(minLength: 0)
-            Text(footerText)
-                .font(.system(size: 15, weight: .semibold))
-                .foregroundStyle(.black)
+
+            if let frameURL, let img = NSImage(contentsOf: frameURL) {
+                Image(nsImage: img)
+                    .resizable()
+                    .frame(width: stripWidth, height: height)
+                    .allowsHitTesting(false)
+            } else {
+                Text(footerText)
+                    .font(.system(size: max(9, stripWidth * 0.05), weight: .semibold))
+                    .foregroundStyle(.black)
+                    .position(x: stripWidth / 2,
+                              y: (1 - StripLayout.footerRect.height / StripLayout.designSize.height / 2) * height)
+            }
         }
-        .padding(margin)
         .frame(width: stripWidth, height: height)
-        .background(.white)
-        .clipShape(RoundedRectangle(cornerRadius: corner + 4))
+        .clipShape(RoundedRectangle(cornerRadius: corner))
     }
 
     private func clipURLs(for index: Int) -> [URL] {
