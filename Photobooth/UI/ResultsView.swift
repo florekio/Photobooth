@@ -7,7 +7,7 @@ struct ResultsView: View {
     @Bindable var controller: CameraController
     let result: SessionResult
 
-    @State private var player: AVPlayer?
+    private let stripHeight: CGFloat = 540
 
     var body: some View {
         ZStack {
@@ -18,8 +18,8 @@ struct ResultsView: View {
                     .font(.largeTitle.weight(.bold))
                     .foregroundStyle(.white)
 
-                HStack(alignment: .top, spacing: 28) {
-                    montagePanel
+                HStack(alignment: .top, spacing: 40) {
+                    digitalPanel
                     stripPanel
                 }
 
@@ -27,26 +27,13 @@ struct ResultsView: View {
             }
             .padding(40)
         }
-        .onAppear {
-            if let url = result.montage { player = AVPlayer(url: url); player?.play() }
-        }
-        .onDisappear { player?.pause() }
     }
 
     @ViewBuilder
-    private var montagePanel: some View {
+    private var digitalPanel: some View {
         VStack(spacing: 8) {
             Text("Digital strip (video)").font(.headline).foregroundStyle(.white.opacity(0.8))
-            Group {
-                if let player {
-                    VideoPlayer(player: player)
-                        .onAppear { player.actionAtItemEnd = .none }
-                } else {
-                    placeholder("Montage unavailable")
-                }
-            }
-            .frame(width: 520, height: 320)
-            .clipShape(RoundedRectangle(cornerRadius: 12))
+            DigitalStripView(result: result, height: stripHeight)
         }
     }
 
@@ -61,9 +48,10 @@ struct ResultsView: View {
                         .scaledToFit()
                 } else {
                     placeholder("Strip unavailable")
+                        .frame(width: 220, height: stripHeight)
                 }
             }
-            .frame(width: 260, height: 320)
+            .frame(height: stripHeight)
         }
     }
 

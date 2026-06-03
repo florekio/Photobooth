@@ -1,0 +1,99 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Version for a manual build (e.g. 1.2.3)'
+        required: true
+        default: '0.0.0'
+
+permissions:
+  contents: write
+
+jobs:
+  build-release:
+    runs-on: macos-15
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Resolve version
+        id: version
+        run: |
+          if [ "${{ github.event_name }}" = "push" ]; then
+            VERSION="${GITHUB_REF_NAME#v}"   # strip leading "v" from the tag
+          else
+            VERSION="${{ github.event.inputs.version }}"
+          fi
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+          echo "Building Photobooth $VERSION"
+
+      - name: Show Xcode
+        run: xcodebuild -version
+
+      - name: Install XcodeGen
+        run: brew install xcodegen
+
+      - name: Generate Xcode project
+        run: xcodegen generate
+
+      - name: Build (Release, unsigned)
+        run: |
+          xcodebuild \
+            -project Photobooth.xcodeproj \
+            -scheme Photobooth \
+            -configuration Release \
+            -derivedDataPath build \
+            MARKETING_VERSION="${{ steps.version.outputs.version }}" \
+            CURRENT_PROJECT_VERSION="${{ github.run_number }}" \
+            CODE_SIGNING_ALLOWED=NO \
+            build
+
+      - name: Package .zip and .dmg
+        id: package
+        run: |
+          set -euo pipefail
+          APP="build/Build/Products/Release/Photobooth.app"
+          test -d "$APP" || { echo "::error::App bundle not found at $APP"; exit 1; }
+          VERSION="${{ steps.version.outputs.version }}"
+          ZIP="Photobooth-$VERSION.zip"
+          DMG="Photobooth-$VERSION.dmg"
+
+          # Zip (ditto preserves the bundle correctly)
+          ditto -c -k --keepParent "$APP" "$ZIP"
+
+          # DMG with a drag-to-Applications shortcut
+          STAGE="$(mktemp -d)/Photobooth"
+          mkdir -p "$STAGE"
+          cp -R "$APP" "$STAGE/"
+          ln -s /Applications "$STAGE/Applications"
+          hdiutil create -volname "Photobooth" -srcfolder "$STAGE" -ov -format UDZO "$DMG"
+
+          echo "zip=$ZIP" >> "$GITHUB_OUTPUT"
+          echo "dmg=$DMG" >> "$GITHUB_OUTPUT"
+
+      - name: Publish GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          name: Photobooth ${{ steps.version.outputs.version }}
+          tag_name: ${{ github.event_name == 'push' && github.ref_name || format('v{0}', steps.version.outputs.version) }}
+          draft: false
+          generate_release_notes: true
+          files: |
+            ${{ steps.package.outputs.zip }}
+            ${{ steps.package.outputs.dmg }}
+          body: |
+            Automated build of **Photobooth ${{ steps.version.outputs.version }}**.
+
+            ### Install
+            Download the `.dmg`, open it, and drag **Photobooth** into **Applications**.
+
+            > ⚠️ This build is **unsigned / not notarized**. On first launch, right-click the
+            > app ▸ **Open** (or run `xattr -dr com.apple.quarantine /Applications/Photobooth.app`).
+
+            ### Requirements
+            - macOS 14 or later
+            - `ffmpeg` for the montage feature: `brew install ffmpeg`

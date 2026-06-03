@@ -23,3 +23,7 @@ xcuserdata/
 Sessions/
 *.mov
 *.mp4
+
+# Local release artifacts (CI uploads these to GitHub Releases instead)
+Photobooth-*.zip
+Photobooth-*.dmg

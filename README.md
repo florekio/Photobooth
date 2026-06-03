@@ -169,6 +169,30 @@ var getReadySeconds = 2    // pause between shots
 Montage resolution/fps and the photo-freeze duration are in `MontageBuilder`;
 strip layout (photo width, margins, footer) is in `PhotoStripRenderer`.
 
+## Releases (CI/CD)
+
+GitHub Actions builds and publishes releases (`.github/workflows/`):
+
+- **`ci.yml`** — builds the app on every push to `main` and on PRs, as a compile check.
+- **`release.yml`** — on a `v*` tag (or a manual *Run workflow*), builds Release,
+  packages a `.zip` and a `.dmg`, and publishes a GitHub Release with auto-generated notes.
+
+Cut a release by tagging:
+
+```sh
+git tag v1.0.0
+git push origin v1.0.0
+```
+
+The app version (`CFBundleShortVersionString`) is taken from the tag, and the build
+number from the CI run number.
+
+> **Signing:** builds are **unsigned / not notarized** (no Apple Developer account is
+> wired in). Recipients right-click ▸ **Open** on first launch, or run
+> `xattr -dr com.apple.quarantine /Applications/Photobooth.app`. To ship signed,
+> notarized builds later, add Developer ID signing + `xcrun notarytool` steps and set
+> `DEVELOPMENT_TEAM` in `project.yml`.
+
 ## Roadmap
 
 - [x] Live webcam preview + device picker
