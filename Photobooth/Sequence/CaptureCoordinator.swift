@@ -33,8 +33,8 @@ final class CaptureCoordinator {
 
     struct Config {
         var shots = 4
-        var countdownSeconds = 5
-        var afterSeconds = 5
+        var countdownSeconds = 3
+        var afterSeconds = 3
         var getReadySeconds = 2
     }
 
