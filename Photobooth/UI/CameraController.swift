@@ -30,6 +30,20 @@ final class CameraController {
     var statusMessage: String?
     var showingGallery = false
 
+    /// Kiosk lock: hides all operator controls (camera picker, gallery) and puts
+    /// the window fullscreen so guests can only start a session. Toggled with ⌘L.
+    /// Persisted so the booth comes back locked after a relaunch.
+    var isLocked = UserDefaults.standard.bool(forKey: "kioskLocked") {
+        didSet { UserDefaults.standard.set(isLocked, forKey: "kioskLocked") }
+    }
+    /// Whether the PIN entry overlay is up (⌘L while locked asks for the PIN).
+    var showingUnlockPrompt = false
+    /// PIN required to leave kiosk lock. Defaults to 1337; overridable via the
+    /// `kioskPIN` user default.
+    var kioskPIN: String = UserDefaults.standard.string(forKey: "kioskPIN") ?? "1337" {
+        didSet { UserDefaults.standard.set(kioskPIN, forKey: "kioskPIN") }
+    }
+
     // Frames
     private(set) var frameOptions: [FrameOption] = [FrameOption(id: "none", name: "No frame", url: nil)]
     var selectedFrameID: String = "none"
@@ -87,12 +101,11 @@ final class CameraController {
 
     func refreshDevices() {
         var found = DeviceDiscovery.webcams()
-        // Nikon entry is always offered; selecting it surfaces the "not yet"
-        // message until Phase 4 lands.
-        found.append(CameraDevice(id: "nikon-gphoto2", name: "Nikon (gPhoto2)", kind: .nikon))
+        // Real Nikon bodies detected over PTP; only listed when actually connected.
+        found.append(contentsOf: DeviceDiscovery.nikonCameras())
         devices = found
-        if selectedDeviceID == nil {
-            selectedDeviceID = found.first(where: { $0.kind == .webcam })?.id
+        if selectedDeviceID == nil || !found.contains(where: { $0.id == selectedDeviceID }) {
+            selectedDeviceID = found.first(where: { $0.kind == .webcam })?.id ?? found.first?.id
         }
     }
 

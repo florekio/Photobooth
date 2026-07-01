@@ -39,20 +39,26 @@ struct BoothView: View {
                 VStack {
                     HStack {
                         Spacer()
-                        Button {
-                            controller.showingGallery = true
-                        } label: {
-                            Label("Past sessions", systemImage: "photo.stack")
-                                .font(.callout.weight(.semibold))
-                                .foregroundStyle(.white)
-                                .padding(.horizontal, 14).padding(.vertical, 8)
-                                .background(.black.opacity(0.55), in: Capsule())
+                        // Operator control — hidden in kiosk lock.
+                        if !controller.isLocked {
+                            Button {
+                                controller.showingGallery = true
+                            } label: {
+                                Label("Past sessions", systemImage: "photo.stack")
+                                    .font(.callout.weight(.semibold))
+                                    .foregroundStyle(.white)
+                                    .padding(.horizontal, 14).padding(.vertical, 8)
+                                    .background(.black.opacity(0.55), in: Capsule())
+                            }
+                            .buttonStyle(.plain)
                         }
-                        .buttonStyle(.plain)
                     }
                     Spacer()
                     HStack {
-                        SourcePickerView(controller: controller)
+                        // Operator control — hidden in kiosk lock.
+                        if !controller.isLocked {
+                            SourcePickerView(controller: controller)
+                        }
                         Spacer()
                         if controller.previewLayer != nil {
                             Text("Press Space to start")
@@ -66,13 +72,26 @@ struct BoothView: View {
                 .padding(24)
             }
 
-            if controller.showingGallery {
+            if controller.showingGallery && !controller.isLocked {
                 GalleryView { controller.showingGallery = false }
                     .transition(.opacity)
             }
+
+            if controller.showingUnlockPrompt {
+                UnlockView(
+                    verify: { $0 == controller.kioskPIN },
+                    onSuccess: unlock,
+                    onCancel: { controller.showingUnlockPrompt = false }
+                )
+                .transition(.opacity)
+            }
         }
         .task { await controller.start() }
-        .onAppear { installKeyMonitor() }
+        .onAppear {
+            installKeyMonitor()
+            // Restore fullscreen if the booth relaunched while locked.
+            if controller.isLocked { DispatchQueue.main.async { setFullScreen(true) } }
+        }
         .onDisappear { removeKeyMonitor() }
     }
 
@@ -105,6 +124,17 @@ struct BoothView: View {
     private func installKeyMonitor() {
         guard keyMonitor == nil else { return }
         keyMonitor = NSEvent.addLocalMonitorForEvents(matching: .keyDown) { event in
+            // ⌘L toggles the kiosk lock (hidden from guests) at any time.
+            if event.keyCode == 37, event.modifierFlags.contains(.command) {
+                toggleLock()
+                return nil
+            }
+            // While the PIN prompt is up, let keystrokes reach the field (so
+            // Space doesn't start a capture); Esc cancels the prompt.
+            if controller.showingUnlockPrompt {
+                if event.keyCode == 53 { controller.showingUnlockPrompt = false; return nil }
+                return event
+            }
             // Don't drive capture while the gallery is open; let Esc close it.
             if controller.showingGallery {
                 if event.keyCode == 53 { controller.showingGallery = false; return nil }
@@ -126,6 +156,90 @@ struct BoothView: View {
     private func removeKeyMonitor() {
         if let keyMonitor { NSEvent.removeMonitor(keyMonitor) }
         keyMonitor = nil
+    }
+
+    // MARK: - Kiosk lock
+
+    private func toggleLock() {
+        if controller.isLocked {
+            // Leaving the booth requires the PIN.
+            controller.showingUnlockPrompt = true
+        } else {
+            controller.isLocked = true
+            controller.showingGallery = false
+            setFullScreen(true)
+        }
+    }
+
+    private func unlock() {
+        controller.isLocked = false
+        controller.showingUnlockPrompt = false
+        setFullScreen(false)
+    }
+
+    /// Drive native fullscreen to `on`, leaving it alone if already there.
+    private func setFullScreen(_ on: Bool) {
+        guard let window = NSApp.keyWindow ?? NSApp.mainWindow ?? NSApp.windows.first else { return }
+        if window.styleMask.contains(.fullScreen) != on {
+            window.toggleFullScreen(nil)
+        }
+    }
+}
+
+// MARK: - Kiosk unlock
+
+/// PIN entry to leave kiosk lock. Owns its own text state so the field behaves
+/// naturally; `verify` returns true when the entered PIN is correct.
+private struct UnlockView: View {
+    let verify: (String) -> Bool
+    let onSuccess: () -> Void
+    let onCancel: () -> Void
+
+    @State private var entry = ""
+    @State private var wrong = false
+    @FocusState private var focused: Bool
+
+    var body: some View {
+        ZStack {
+            Color.black.opacity(0.85).ignoresSafeArea()
+            VStack(spacing: 18) {
+                Image(systemName: "lock.fill")
+                    .font(.system(size: 44))
+                    .foregroundStyle(.white)
+                Text("Enter PIN to unlock")
+                    .font(.title2.weight(.semibold))
+                    .foregroundStyle(.white)
+                SecureField("PIN", text: $entry)
+                    .textFieldStyle(.roundedBorder)
+                    .multilineTextAlignment(.center)
+                    .frame(width: 160)
+                    .focused($focused)
+                    .onSubmit(submit)
+                if wrong {
+                    Text("Wrong PIN — try again")
+                        .font(.callout)
+                        .foregroundStyle(.red)
+                }
+                HStack(spacing: 16) {
+                    Button("Cancel", action: onCancel)
+                    Button("Unlock", action: submit)
+                        .buttonStyle(.borderedProminent)
+                        .keyboardShortcut(.defaultAction)
+                }
+            }
+            .padding(40)
+            .background(.black.opacity(0.6), in: RoundedRectangle(cornerRadius: 20))
+        }
+        .onAppear { focused = true }
+    }
+
+    private func submit() {
+        if verify(entry) {
+            onSuccess()
+        } else {
+            wrong = true
+            entry = ""
+        }
     }
 }
 
