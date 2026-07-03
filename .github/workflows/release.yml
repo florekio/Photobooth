@@ -34,8 +34,10 @@ jobs:
       - name: Show Xcode
         run: xcodebuild -version
 
-      - name: Install XcodeGen
-        run: brew install xcodegen
+      - name: Install build dependencies
+        # libgphoto2 provides the headers + dylibs the Nikon (PTP) capture path
+        # links against; without it the bridging header can't find gphoto2.h.
+        run: brew install xcodegen libgphoto2
 
       - name: Generate Xcode project
         run: xcodegen generate
@@ -97,3 +99,5 @@ jobs:
             ### Requirements
             - macOS 14 or later
             - `ffmpeg` for the montage feature: `brew install ffmpeg`
+            - `libgphoto2` for the Nikon (DSLR) capture path: `brew install libgphoto2`
+              (only needed if you use a Nikon; the app links it at the Homebrew prefix)

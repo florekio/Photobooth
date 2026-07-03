@@ -11,8 +11,10 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Install XcodeGen
-        run: brew install xcodegen
+      - name: Install build dependencies
+        # libgphoto2 provides the headers + dylibs the Nikon (PTP) capture path
+        # links against; without it the bridging header can't find gphoto2.h.
+        run: brew install xcodegen libgphoto2
 
       - name: Generate Xcode project
         run: xcodegen generate
