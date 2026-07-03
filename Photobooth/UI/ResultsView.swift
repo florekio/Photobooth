@@ -148,15 +148,9 @@ struct ResultsView: View {
 
     private var operatorActions: some View {
         HStack(spacing: 16) {
-            // Finder/Print open external apps — hidden in kiosk lock so guests
-            // can't escape the booth. "Done" always stays so they can dismiss.
+            // Print opens an external app — hidden in kiosk lock so guests can't
+            // escape the booth. "Done" always stays so they can dismiss.
             if !controller.isLocked {
-                Button {
-                    NSWorkspace.shared.activateFileViewerSelecting([result.store.root])
-                } label: {
-                    Label("Reveal in Finder", systemImage: "folder")
-                }
-
                 if let pdf = result.stripPDF {
                     Button {
                         NSWorkspace.shared.open(pdf)
