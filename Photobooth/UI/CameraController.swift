@@ -52,14 +52,17 @@ final class CameraController {
     var isCapturing: Bool { coordinator?.isRunning ?? false }
     var shotCount: Int { coordinator?.config.shots ?? 4 }
 
-    /// Discover bundled `frame-*.png` templates plus the built-in "No frame".
+    /// Discover bundled frame PNGs (any file named `frame…`, case-insensitive —
+    /// e.g. `frame-green.png`, `Frame_1.png`) plus the built-in "No frame".
     func loadFrames() {
         var options: [FrameOption] = [FrameOption(id: "none", name: "No frame", url: nil)]
         let urls = Bundle.main.urls(forResourcesWithExtension: "png", subdirectory: nil) ?? []
-        for url in urls.sorted(by: { $0.lastPathComponent < $1.lastPathComponent })
-        where url.lastPathComponent.hasPrefix("frame-") {
+        for url in urls.sorted(by: { $0.lastPathComponent.localizedStandardCompare($1.lastPathComponent) == .orderedAscending })
+        where url.lastPathComponent.lowercased().hasPrefix("frame") {
             let name = url.deletingPathExtension().lastPathComponent
-                .replacingOccurrences(of: "frame-", with: "").capitalized
+                .replacingOccurrences(of: "-", with: " ")
+                .replacingOccurrences(of: "_", with: " ")
+                .capitalized
             options.append(FrameOption(id: url.lastPathComponent, name: name, url: url))
         }
         frameOptions = options
@@ -70,6 +73,16 @@ final class CameraController {
     func selectFrame(_ id: String) {
         selectedFrameID = id
         rerenderStripIfNeeded()
+    }
+
+    /// Step through the available frames (arrow keys, usable in kiosk lock).
+    /// Wraps around; `delta` -1 = previous, +1 = next.
+    func cycleFrame(by delta: Int) {
+        guard !frameOptions.isEmpty else { return }
+        let count = frameOptions.count
+        let current = frameOptions.firstIndex { $0.id == selectedFrameID } ?? 0
+        let next = ((current + delta) % count + count) % count
+        selectFrame(frameOptions[next].id)
     }
 
     /// Let the user choose any PNG as a custom frame.
@@ -212,5 +225,19 @@ final class CameraController {
     func dismissResult() {
         lastResult = nil
         coordinator = nil
+    }
+
+    /// Print the current result's strip as a 4×6" double-strip sheet on the
+    /// SELPHY. In kiosk lock it prints silently (no panel) so guests just tap.
+    func printStrip() {
+        guard let png = lastResult?.stripPNG else {
+            statusMessage = "Nothing to print yet."
+            return
+        }
+        do {
+            try StripPrinter.printDoubleStrip(stripPNG: png, showPanel: !isLocked)
+        } catch {
+            statusMessage = "Print failed: \(error.localizedDescription)"
+        }
     }
 }

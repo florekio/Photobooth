@@ -6,9 +6,23 @@ import AppKit
 struct BoothView: View {
     @Bindable var controller: CameraController
     @State private var keyMonitor: Any?
+    // Transient "current frame" hint shown when the frame changes — the only
+    // frame feedback while kiosk-locked (the picker is hidden then).
+    @State private var frameHintVisible = false
+    @State private var frameHintSeq = 0
 
     private var phase: CaptureCoordinator.Phase {
         controller.coordinator?.phase ?? .idle
+    }
+
+    private var selectedFrameName: String {
+        controller.frameOptions.first { $0.id == controller.selectedFrameID }?.name ?? "No frame"
+    }
+
+    /// The persistent kiosk frame bar is on the idle screen while locked; the
+    /// transient hint pill is redundant then.
+    private var kioskFrameBarVisible: Bool {
+        controller.isLocked && !controller.isCapturing && controller.lastResult == nil
     }
 
     var body: some View {
@@ -54,6 +68,11 @@ struct BoothView: View {
                         }
                     }
                     Spacer()
+                    // Frame chooser. Operators get the full picker; guests in
+                    // kiosk lock get the read-friendly bar with the arrow-key hint.
+                    FramePickerView(controller: controller, kiosk: controller.isLocked)
+                        .frame(maxWidth: 640)
+                        .padding(.bottom, 4)
                     HStack {
                         // Operator control — hidden in kiosk lock.
                         if !controller.isLocked {
@@ -85,8 +104,35 @@ struct BoothView: View {
                 )
                 .transition(.opacity)
             }
+
+            if frameHintVisible && !kioskFrameBarVisible {
+                VStack {
+                    Spacer()
+                    Label("Frame: \(selectedFrameName)", systemImage: "photo.artframe")
+                        .font(.title3.weight(.semibold))
+                        .foregroundStyle(.white)
+                        .padding(.horizontal, 22).padding(.vertical, 12)
+                        .background(.black.opacity(0.6), in: Capsule())
+                        .padding(.bottom, 120)
+                }
+                .transition(.opacity)
+                .allowsHitTesting(false)
+            }
         }
         .task { await controller.start() }
+        .onChange(of: controller.selectedFrameID) {
+            // Flash the frame name; keep it up while cycling, hide 1.6s after
+            // the last change.
+            frameHintSeq += 1
+            let seq = frameHintSeq
+            withAnimation(.easeOut(duration: 0.15)) { frameHintVisible = true }
+            Task {
+                try? await Task.sleep(nanoseconds: 1_600_000_000)
+                if seq == frameHintSeq {
+                    withAnimation(.easeOut(duration: 0.3)) { frameHintVisible = false }
+                }
+            }
+        }
         .onAppear {
             installKeyMonitor()
             // Restore fullscreen if the booth relaunched while locked.
@@ -146,6 +192,12 @@ struct BoothView: View {
                 return nil
             case 53: // Escape
                 controller.cancelCapture()
+                return nil
+            case 126: // Up arrow → previous frame
+                controller.cycleFrame(by: -1)
+                return nil
+            case 125: // Down arrow → next frame
+                controller.cycleFrame(by: +1)
                 return nil
             default:
                 return event

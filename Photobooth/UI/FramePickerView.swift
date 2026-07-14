@@ -1,14 +1,42 @@
 import SwiftUI
 
-/// Horizontal frame chooser: "No frame", each bundled/custom frame as a swatch,
-/// plus a button to load any PNG from disk.
+/// Horizontal frame chooser: "No frame", each bundled/custom frame as a swatch.
+/// Operator mode adds a "Choose PNG…" button; kiosk mode drops it (no file
+/// dialog for guests) and shows the arrow-key hint instead.
 struct FramePickerView: View {
     @Bindable var controller: CameraController
+    /// Kiosk variant: no file picker, plus the "↑ / ↓ to change frame" caption.
+    var kiosk: Bool = false
 
     var body: some View {
+        if kiosk {
+            VStack(spacing: 6) {
+                swatchRow
+                Text("Use ↑ / ↓ to change frame")
+                    .font(.caption.weight(.medium))
+                    .foregroundStyle(.white.opacity(0.75))
+            }
+            .padding(.horizontal, 16).padding(.vertical, 10)
+            .background(.black.opacity(0.5), in: RoundedRectangle(cornerRadius: 18))
+        } else {
+            HStack(spacing: 12) {
+                swatchRow
+                Button {
+                    controller.chooseCustomFrame()
+                } label: {
+                    Label("Choose PNG…", systemImage: "folder")
+                }
+                .buttonStyle(.bordered)
+                .controlSize(.small)
+            }
+            .padding(.horizontal, 14).padding(.vertical, 8)
+            .background(.black.opacity(0.45), in: Capsule())
+        }
+    }
+
+    private var swatchRow: some View {
         HStack(spacing: 12) {
             Image(systemName: "photo.artframe").foregroundStyle(.white.opacity(0.8))
-
             ScrollView(.horizontal, showsIndicators: false) {
                 HStack(spacing: 10) {
                     ForEach(controller.frameOptions) { option in
@@ -17,17 +45,7 @@ struct FramePickerView: View {
                 }
                 .padding(.vertical, 2)
             }
-
-            Button {
-                controller.chooseCustomFrame()
-            } label: {
-                Label("Choose PNG…", systemImage: "folder")
-            }
-            .buttonStyle(.bordered)
-            .controlSize(.small)
         }
-        .padding(.horizontal, 14).padding(.vertical, 8)
-        .background(.black.opacity(0.45), in: Capsule())
     }
 
     @ViewBuilder
