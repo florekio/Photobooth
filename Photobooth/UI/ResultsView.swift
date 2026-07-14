@@ -148,16 +148,12 @@ struct ResultsView: View {
 
     private var operatorActions: some View {
         HStack(spacing: 16) {
-            // Print opens an external app — hidden in kiosk lock so guests can't
-            // escape the booth. "Done" always stays so they can dismiss.
-            if !controller.isLocked {
-                if let pdf = result.stripPDF {
-                    Button {
-                        NSWorkspace.shared.open(pdf)
-                    } label: {
-                        Label("Print strip", systemImage: "printer")
-                    }
-                }
+            // Prints two strips on one 4×6" sheet. Available to guests even in
+            // kiosk lock, where it prints silently straight to the SELPHY.
+            Button {
+                controller.printStrip()
+            } label: {
+                Label("Print strip", systemImage: "printer")
             }
 
             Button {
