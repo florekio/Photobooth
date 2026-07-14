@@ -3,8 +3,10 @@
 A macOS photobooth app built with SwiftUI. It shows a live camera feed full-screen,
 and on a single hotkey press runs an automatic **4-shot** sequence — each shot pairs
 a photo with a video recorded immediately before and after it. At the end you get a
-stitched **MP4 montage** (the "digital strip with videos") and a print-ready
-**PDF/PNG photo strip**.
+stitched **MP4 montage** (the "digital strip with videos"), a print-ready
+**PDF/PNG photo strip**, a QR code to share to a phone, and a one-tap **print** of
+two strips on a 4×6" sheet. Runs from a USB webcam or a tethered **Nikon DSLR**, and
+has a **kiosk lock** for unattended events.
 
 ## What it does
 
@@ -12,11 +14,11 @@ Press **Space** and the booth runs four shots back-to-back, hands-free:
 
 ```
 per shot ×4:
-  5s countdown on screen  ── while recording the "before" clip
+  3s countdown on screen  ── while recording the "before" clip
   ↓
   📸 photo + screen flash
   ↓
-  5s "after" clip recording
+  3s "after" clip recording
   ↓
   "Get ready!"  ── brief pause, then the next shot
 ```
@@ -37,6 +39,9 @@ a montage video and a photo strip.
   `ffprobe` ships with it)
 - [cloudflared](https://github.com/cloudflare/cloudflared) — `brew install cloudflared`
   (used for the QR-code sharing tunnel; see [Sharing](#sharing))
+- [libgphoto2](http://www.gphoto.org/) — `brew install libgphoto2` (only for the
+  Nikon DSLR path; the webcam path doesn't need it). The app links it at the
+  Homebrew prefix, so it must be installed to build and to run the Nikon capture.
 
 ## Hardware
 
@@ -46,16 +51,28 @@ Any UVC-class USB webcam works **with no drivers** — macOS exposes it to AVFou
 directly. Developed and tested with a **Logitech Brio 100**. The built-in FaceTime
 camera and Continuity Camera (iPhone) also show up in the picker.
 
-### Nikon D5500 (planned — Phase 4)
+### Nikon DSLR — tethered over USB (works now)
 
-A `NikonSource` is stubbed behind the same `CaptureSource` protocol but not yet
-implemented. The plan is to drive it over USB/PTP with
-[`libgphoto2`](http://www.gphoto.org/) (`brew install gphoto2 libgphoto2`).
+`NikonSource` drives a Nikon body over USB/PTP with
+[`libgphoto2`](http://www.gphoto.org/) (`brew install libgphoto2`), behind the same
+`CaptureSource` protocol as the webcam. Developed and tested with a **Nikon D5500**.
+It shows a liveview preview, records the before/after clips from that liveview
+stream, and captures full-resolution stills (downscaled to 2400 px long-edge before
+they hit the strip). It appears in the camera picker automatically when connected.
 
 > **Known constraint:** Nikon bodies do not allow starting/stopping the camera's
-> *internal* video recording over USB. So for the Nikon path the "before/after
-> videos" will be a recording of the **liveview stream** (~720p MJPEG), while the
-> stills are captured at full resolution. The webcam path is unaffected.
+> *internal* video recording over USB, so the "before/after videos" are a recording
+> of the **liveview stream** (~640×424 JPEG). Stills are captured at full 24 MP. The
+> webcam path is unaffected.
+
+**Camera setup for the booth:**
+
+- Set the **lens to manual focus (MF)** — in AF mode the shutter refuses to fire
+  ("Out of Focus") over USB. `NikonSource` also sets `autofocus=Off`.
+- Set the **mode dial to `P` or `A`** (not `M`) so the camera auto-exposes; exposure
+  mode is read-only over USB, so a dark `M` setting can't be fixed from the app.
+- On macOS the system `ptpcamerad` daemon grabs the camera on plug-in; the app kills
+  it before claiming the device, so no manual step is needed.
 
 ## Build & run
 
@@ -78,12 +95,33 @@ access — grant both. If you miss the prompt, enable them under
 
 ## Controls
 
-| Key            | Action                                  |
-| -------------- | --------------------------------------- |
-| **Space** / ⏎  | Start the 4-shot sequence               |
-| **Esc**        | Cancel the current sequence             |
+| Key             | Action                                              |
+| --------------- | --------------------------------------------------- |
+| **Space** / ⏎   | Start the 4-shot sequence                           |
+| **Esc**         | Cancel the current sequence                         |
+| **↑ / ↓**       | Previous / next strip frame (works while locked)    |
+| **⌘L**          | Toggle kiosk lock (PIN to unlock — see below)       |
 
-The camera picker (bottom-left) switches inputs live.
+The camera picker and frame picker (bottom of the idle screen) switch inputs and
+frames live; both are hidden while kiosk-locked.
+
+### Kiosk mode
+
+**⌘L** locks the booth for unattended use: it goes fullscreen and hides all operator
+controls (camera picker, frame picker, gallery) so guests can only start a session,
+change the frame with **↑/↓**, and print. Pressing **⌘L** again prompts for a **PIN**
+to unlock (default **`1337`**, override with `defaults write com.mapular.photobooth
+kioskPIN <pin>`). The lock state persists across relaunches. While locked, the idle
+screen shows the available frames with a "Use ↑ / ↓ to change frame" hint.
+
+### Printing
+
+The results screen has a **Print strip** button. It lays out **two identical strips
+side by side on one 4×6" (10×15 cm) sheet** — the classic photobooth layout, cut down
+the middle — sized for the **Canon SELPHY CP1500** postcard paper (KP-108IN). It
+auto-selects a printer whose name contains "SELPHY"/"CP1500", else the default
+printer. Unlocked it shows the print dialog (pick paper/borderless the first time);
+kiosk-locked it prints silently so guests just tap once.
 
 ## Output
 
@@ -92,8 +130,8 @@ Each session writes to a timestamped folder:
 ```
 ~/Pictures/Photobooth/<yyyy-MM-dd_HH-mm-ss>/
   photo_1.jpg … photo_4.jpg     # the four stills
-  before_1.mov … before_4.mov   # 5s clip recorded during each countdown
-  after_1.mov  … after_4.mov    # 5s clip recorded after each photo
+  before_1.mov … before_4.mov   # 3s clip recorded during each countdown
+  after_1.mov  … after_4.mov    # 3s clip recorded after each photo
   montage.mp4                   # stitched: before → photo freeze → after, ×4
   strip.pdf                     # print-ready vertical photo strip
   strip.png                     # same strip as an image
@@ -152,8 +190,9 @@ Photobooth/
     CaptureSource.swift              Protocol: any camera input the booth can drive
     WebcamSource.swift               AVFoundation: preview layer + AVAssetWriter
                                      recording + frame-grab still, one session
-    NikonSource.swift                Stub for the libgphoto2 path (Phase 4)
-    DeviceDiscovery.swift            Enumerates cameras for the picker
+    NikonSource.swift                Nikon over libgphoto2/PTP: liveview preview +
+                                     clips + full-res stills, one camera handle
+    DeviceDiscovery.swift            Enumerates webcams + Nikon (gp_camera_autodetect)
 
   Sequence/
     CaptureCoordinator.swift         @Observable state machine: countdown →
@@ -165,6 +204,7 @@ Photobooth/
                                      to identical params, then concat-copies them
     PhotoStripRenderer.swift         Core Graphics → PDF + PNG vertical strip
     StripGifBuilder.swift            ffmpeg → animated GIF of the 4-cell video strip
+    StripPrinter.swift               Tiles two strips onto a 4×6" sheet, prints it
 
   Sharing/
     ShareServer.swift                Loopback HTTP server: mobile page + strip/
@@ -176,17 +216,21 @@ Photobooth/
     QRCode.swift                     CoreImage QR generation (local, offline)
 
   UI/
-    CameraController.swift           @Observable owner of the active source,
-                                     device selection, and the running coordinator
+    CameraController.swift           @Observable owner of the active source, device
+                                     + frame selection, kiosk lock, coordinator
     BoothView.swift                  Full-bleed preview + countdown/flash/REC
-                                     overlays + Space/Esc hotkeys
+                                     overlays + Space/Esc/↑↓/⌘L hotkeys + PIN unlock
     CameraPreviewView.swift          NSViewRepresentable hosting the preview layer
     SourcePickerView.swift           Camera picker
-    ResultsView.swift                QR-first share screen + operator actions
+    FramePickerView.swift            Frame chooser (full operator + kiosk variants)
+    ResultsView.swift                QR-first share screen + Print/Done actions
+
+  Photobooth-Bridging-Header.h       Exposes libgphoto2's C API to Swift
 
   Resources/
     Info.plist                       Camera/microphone usage descriptions
     Photobooth.entitlements          App Sandbox disabled (see below)
+    Frames/                          frame-*.png + Frame_*.png strip overlays
 ```
 
 ### Key design notes
@@ -200,9 +244,13 @@ Photobooth/
   identical parameters (1280×720, 30 fps, H.264 + AAC; photos held ~1.5s with silent
   audio), then joined with ffmpeg's concat demuxer using stream copy. Clips missing
   an audio track get a synthesized silent track so concatenation always succeeds.
+- **Nikon uses one serialized handle.** libgphoto2 isn't thread-safe, so
+  `NikonSource` keeps a single `Camera*` on a private serial queue; the liveview poll
+  loop yields between frames so a still capture can interleave. The full-res shutter
+  briefly interrupts liveview, which reads as a natural freeze at the flash moment.
 - **App Sandbox is off** (`Photobooth.entitlements`). This is a local kiosk app, not
-  an App Store build; it needs to launch the external `ffmpeg` binary via `Process`
-  (and later `gphoto2`) and write session files freely.
+  an App Store build; it launches the external `ffmpeg`/`cloudflared` binaries via
+  `Process`, links `libgphoto2`, and writes session files freely.
 - **Hotkey is a local key monitor.** The app runs focused/full-screen, so
   `NSEvent.addLocalMonitorForEvents` is enough — no Accessibility permission needed.
   A physical button or foot pedal that maps to Space/Return works as-is.
@@ -213,13 +261,16 @@ Capture timing lives in `CaptureCoordinator.Config` (`Sequence/CaptureCoordinato
 
 ```swift
 var shots = 4              // number of photos in a strip
-var countdownSeconds = 5   // "before" clip length + countdown
-var afterSeconds = 5       // "after" clip length
+var countdownSeconds = 3   // "before" clip length + countdown
+var afterSeconds = 3       // "after" clip length
 var getReadySeconds = 2    // pause between shots
 ```
 
-Montage resolution/fps and the photo-freeze duration are in `MontageBuilder`;
-strip layout (photo width, margins, footer) is in `PhotoStripRenderer`.
+Montage resolution/fps and the photo-freeze duration are in `MontageBuilder`; strip
+layout (photo width, margins, footer) is in `PhotoStripRenderer`; the Nikon still
+downscale (`stillMaxLongEdge`) is in `NikonSource`. The kiosk PIN defaults to `1337`
+(`kioskPIN` user default). Frames are any `Resources/Frames/frame…png` (2×6", 1:3,
+transparent windows — ideal 1200×3600); drop in your own and they appear in the picker.
 
 ## Releases (CI/CD)
 
@@ -251,5 +302,6 @@ number from the CI run number.
 - [x] Automatic 4-shot capture sequence with countdown, before/after clips
 - [x] Montage MP4 (ffmpeg) + print-ready PDF/PNG photo strip
 - [x] QR-code sharing (loopback server + free Cloudflare Quick Tunnel)
-- [ ] Nikon D5500 via libgphoto2 (full-res stills + liveview-based clips)
-- [ ] Direct-to-printer output
+- [x] Nikon D5500 via libgphoto2 (full-res stills + liveview-based clips)
+- [x] Direct-to-printer output (Canon SELPHY CP1500, two strips on 4×6")
+- [x] Kiosk lock with PIN + on-screen frame switching
