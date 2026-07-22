@@ -45,7 +45,7 @@ final class CameraController {
     }
 
     // Frames
-    private(set) var frameOptions: [FrameOption] = [FrameOption(id: "none", name: "No frame", url: nil)]
+    private(set) var frameOptions: [FrameOption] = [FrameOption(id: "none", name: "Kein Rahmen", url: nil)]
     var selectedFrameID: String = "none"
     var selectedFrameURL: URL? { frameOptions.first(where: { $0.id == selectedFrameID })?.url }
 
@@ -55,7 +55,7 @@ final class CameraController {
     /// Discover bundled frame PNGs (any file named `frame…`, case-insensitive —
     /// e.g. `frame-green.png`, `Frame_1.png`) plus the built-in "No frame".
     func loadFrames() {
-        var options: [FrameOption] = [FrameOption(id: "none", name: "No frame", url: nil)]
+        var options: [FrameOption] = [FrameOption(id: "none", name: "Kein Rahmen", url: nil)]
         let urls = Bundle.main.urls(forResourcesWithExtension: "png", subdirectory: nil) ?? []
         for url in urls.sorted(by: { $0.lastPathComponent.localizedStandardCompare($1.lastPathComponent) == .orderedAscending })
         where url.lastPathComponent.lowercased().hasPrefix("frame") {
@@ -229,17 +229,24 @@ final class CameraController {
         coordinator = nil
     }
 
+    /// True while a print dialog / job is in flight. The key monitor checks this
+    /// so a second Enter confirms the open dialog instead of launching another.
+    private(set) var isPrinting = false
+
     /// Print the current result's strip as a 4×6" double-strip sheet on the
     /// SELPHY. In kiosk lock it prints silently (no panel) so guests just tap.
     func printStrip() {
+        guard !isPrinting else { return }
         guard let png = lastResult?.stripPNG else {
-            statusMessage = "Nothing to print yet."
+            statusMessage = "Nichts zum Drucken."
             return
         }
+        isPrinting = true
+        defer { isPrinting = false }
         do {
             try StripPrinter.printDoubleStrip(stripPNG: png, showPanel: !isLocked)
         } catch {
-            statusMessage = "Print failed: \(error.localizedDescription)"
+            statusMessage = "Druck fehlgeschlagen: \(error.localizedDescription)"
         }
     }
 }

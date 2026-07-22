@@ -68,6 +68,10 @@ struct BoothView: View {
                         }
                     }
                     Spacer()
+                    // Big, obvious call-to-action: which key starts the booth.
+                    if controller.previewLayer != nil {
+                        startPrompt.padding(.bottom, 22)
+                    }
                     // Frame chooser. Operators get the full picker; guests in
                     // kiosk lock get the read-friendly bar with the arrow-key hint.
                     FramePickerView(controller: controller, kiosk: controller.isLocked)
@@ -79,13 +83,6 @@ struct BoothView: View {
                             SourcePickerView(controller: controller)
                         }
                         Spacer()
-                        if controller.previewLayer != nil {
-                            Text("Press Space to start")
-                                .font(.callout.weight(.semibold))
-                                .foregroundStyle(.white)
-                                .padding(.horizontal, 14).padding(.vertical, 8)
-                                .background(.black.opacity(0.55), in: Capsule())
-                        }
                     }
                 }
                 .padding(24)
@@ -108,7 +105,7 @@ struct BoothView: View {
             if frameHintVisible && !kioskFrameBarVisible {
                 VStack {
                     Spacer()
-                    Label("Frame: \(selectedFrameName)", systemImage: "photo.artframe")
+                    Label("Rahmen: \(selectedFrameName)", systemImage: "photo.artframe")
                         .font(.title3.weight(.semibold))
                         .foregroundStyle(.white)
                         .padding(.horizontal, 22).padding(.vertical, 12)
@@ -153,16 +150,32 @@ struct BoothView: View {
         case .recordingAfter(let shot, let remaining):
             RecordingOverlay(remaining: remaining, shot: shot, total: controller.shotCount)
         case .getReady(let next):
-            MessageOverlay(title: "Get ready!", subtitle: "Photo \(next) of \(controller.shotCount)")
+            MessageOverlay(title: "Bereit machen!", subtitle: "Foto \(next) von \(controller.shotCount)")
         case .composing:
-            MessageOverlay(title: "Building your photo strip…", subtitle: nil, showsProgress: true)
+            MessageOverlay(title: "Fotostreifen wird erstellt…", subtitle: nil, showsProgress: true)
         case .done:
-            MessageOverlay(title: "All done! 🎉", subtitle: "Press Space for another round")
+            MessageOverlay(title: "Fertig! 🎉", subtitle: "Leertaste für neue Fotos")
         case .failed(let msg):
-            MessageOverlay(title: "Something went wrong", subtitle: msg)
+            MessageOverlay(title: "Etwas ist schiefgelaufen", subtitle: msg)
         case .idle:
             EmptyView()
         }
+    }
+
+    // MARK: - Start prompt
+
+    /// Big, obvious call-to-action on the idle screen telling guests which key
+    /// starts the booth.
+    private var startPrompt: some View {
+        HStack(spacing: 16) {
+            Image(systemName: "camera.fill")
+            Text("Leertaste drücken für Fotos")
+        }
+        .font(.system(size: 34, weight: .bold, design: .rounded))
+        .foregroundStyle(.white)
+        .padding(.horizontal, 34).padding(.vertical, 20)
+        .background(.black.opacity(0.6), in: Capsule())
+        .shadow(radius: 18)
     }
 
     // MARK: - Hotkeys
@@ -170,6 +183,9 @@ struct BoothView: View {
     private func installKeyMonitor() {
         guard keyMonitor == nil else { return }
         keyMonitor = NSEvent.addLocalMonitorForEvents(matching: .keyDown) { event in
+            // While the print dialog is open, don't intercept anything — let Enter
+            // confirm it / Esc cancel it, and ignore repeat prints.
+            if controller.isPrinting { return event }
             // ⌘L toggles the kiosk lock (hidden from guests) at any time.
             if event.keyCode == 37, event.modifierFlags.contains(.command) {
                 toggleLock()
@@ -267,7 +283,7 @@ private struct UnlockView: View {
                 Image(systemName: "lock.fill")
                     .font(.system(size: 44))
                     .foregroundStyle(.white)
-                Text("Enter PIN to unlock")
+                Text("PIN zum Entsperren eingeben")
                     .font(.title2.weight(.semibold))
                     .foregroundStyle(.white)
                 SecureField("PIN", text: $entry)
@@ -277,13 +293,13 @@ private struct UnlockView: View {
                     .focused($focused)
                     .onSubmit(submit)
                 if wrong {
-                    Text("Wrong PIN — try again")
+                    Text("Falscher PIN — nochmal versuchen")
                         .font(.callout)
                         .foregroundStyle(.red)
                 }
                 HStack(spacing: 16) {
-                    Button("Cancel", action: onCancel)
-                    Button("Unlock", action: submit)
+                    Button("Abbrechen", action: onCancel)
+                    Button("Entsperren", action: submit)
                         .buttonStyle(.borderedProminent)
                         .keyboardShortcut(.defaultAction)
                 }
@@ -321,7 +337,7 @@ private struct CountdownOverlay: View {
                     .foregroundStyle(.white)
                     .shadow(radius: 20)
                     .contentTransition(.numericText())
-                Text("Photo \(shot) of \(total)")
+                Text("Foto \(shot) von \(total)")
                     .font(.title2.weight(.semibold))
                     .foregroundStyle(.white.opacity(0.9))
             }
@@ -340,7 +356,7 @@ private struct RecordingOverlay: View {
         ZStack {
             VStack {
                 Spacer()
-                Text("Keep going… \(remaining)s")
+                Text("Weiter so… \(remaining)s")
                     .font(.title.weight(.bold))
                     .foregroundStyle(.white)
                     .padding(.horizontal, 20).padding(.vertical, 12)

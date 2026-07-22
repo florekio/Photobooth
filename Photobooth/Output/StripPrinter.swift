@@ -57,27 +57,31 @@ enum StripPrinter {
         op.run()
     }
 
-    /// Fraction of the sheet kept as a white safety margin on every edge, so the
-    /// SELPHY's borderless overscan crops into white instead of the frame artwork.
+    /// Fraction of each paper dimension kept as a white safety margin on the
+    /// **outer** edges, so the SELPHY's borderless overscan crops into white
+    /// instead of the frame artwork.
     private static let safeInset: CGFloat = 0.06
 
-    /// Tile the strip twice, left and right, into one 4×6 sheet image, each strip
-    /// inset by `safeInset` so nothing important is lost to borderless overscan.
+    /// Tile the strip twice into one 4×6 sheet. The two strips sit **edge to edge
+    /// in the middle** (a clean centre cut, no gap) while the combined block is
+    /// inset from the outer edges by `safeInset` for overscan safety.
     private static func doubleUp(_ strip: CGImage) -> CGImage? {
-        let w = strip.width, h = strip.height
+        let w = CGFloat(strip.width), h = CGFloat(strip.height)
         guard let ctx = CGContext(
-            data: nil, width: w * 2, height: h, bitsPerComponent: 8, bytesPerRow: 0,
+            data: nil, width: Int(w * 2), height: Int(h), bitsPerComponent: 8, bytesPerRow: 0,
             space: CGColorSpace(name: CGColorSpace.sRGB)!,
             bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue) else { return nil }
         ctx.setFillColor(NSColor.white.cgColor)
         ctx.fill(CGRect(x: 0, y: 0, width: w * 2, height: h))
 
-        // Uniform scale-down, centered in each half, leaving a white margin.
+        // Scale the whole two-strip block uniformly and centre it: the strips keep
+        // touching at the middle seam, and the shrink shows only as an outer border.
         let scale = 1 - 2 * safeInset
-        let dw = CGFloat(w) * scale, dh = CGFloat(h) * scale
-        let mx = (CGFloat(w) - dw) / 2, my = (CGFloat(h) - dh) / 2
-        ctx.draw(strip, in: CGRect(x: mx, y: my, width: dw, height: dh))
-        ctx.draw(strip, in: CGRect(x: CGFloat(w) + mx, y: my, width: dw, height: dh))
+        let sw = w * scale, sh = h * scale        // each strip's drawn size
+        let ox = (w * 2 - sw * 2) / 2             // outer left/right margin
+        let oy = (h - sh) / 2                      // outer top/bottom margin
+        ctx.draw(strip, in: CGRect(x: ox, y: oy, width: sw, height: sh))
+        ctx.draw(strip, in: CGRect(x: ox + sw, y: oy, width: sw, height: sh))
         return ctx.makeImage()
     }
 

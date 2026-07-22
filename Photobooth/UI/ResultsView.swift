@@ -14,7 +14,7 @@ struct ResultsView: View {
             Color.black.opacity(0.92).ignoresSafeArea()
 
             VStack(spacing: 22) {
-                Text("Scan to get your photos & video")
+                Text("Scanne für deine Fotos & Videos")
                     .font(.system(size: 40, weight: .bold, design: .rounded))
                     .foregroundStyle(.white)
                     .multilineTextAlignment(.center)
@@ -46,7 +46,7 @@ struct ResultsView: View {
     private func qrPanel(for url: URL) -> some View {
         HStack(alignment: .center, spacing: 40) {
             VStack(spacing: 8) {
-                Text("Video strip")
+                Text("Video-Streifen")
                     .font(.headline)
                     .foregroundStyle(.white.opacity(0.8))
                 DigitalStripView(result: result,
@@ -56,7 +56,7 @@ struct ResultsView: View {
             }
 
             VStack(spacing: 8) {
-                Text("Photo strip")
+                Text("Fotostreifen")
                     .font(.headline)
                     .foregroundStyle(.white.opacity(0.8))
                 photoStrip
@@ -71,10 +71,10 @@ struct ResultsView: View {
                         .padding(14)
                         .background(.white, in: RoundedRectangle(cornerRadius: 16))
                 } else {
-                    placeholder("QR unavailable", width: 200, height: 200)
+                    placeholder("QR nicht verfügbar", width: 200, height: 200)
                 }
 
-                Text("Point your phone camera at the code")
+                Text("Richte deine Handy-Kamera auf den Code")
                     .font(.title3.weight(.medium))
                     .foregroundStyle(.white.opacity(0.85))
 
@@ -100,7 +100,7 @@ struct ResultsView: View {
                 .clipShape(RoundedRectangle(cornerRadius: 12))
                 .shadow(radius: 14)
         } else {
-            placeholder("Strip unavailable", width: stripWidth, height: stripHeight)
+            placeholder("Streifen nicht verfügbar", width: stripWidth, height: stripHeight)
         }
     }
 
@@ -109,7 +109,7 @@ struct ResultsView: View {
     private var preparing: some View {
         VStack(spacing: 16) {
             ProgressView().controlSize(.large).tint(.white)
-            Text("Preparing your share link…")
+            Text("Link wird vorbereitet…")
                 .font(.title3)
                 .foregroundStyle(.white.opacity(0.85))
         }
@@ -121,7 +121,7 @@ struct ResultsView: View {
             Image(systemName: "wifi.exclamationmark")
                 .font(.system(size: 44))
                 .foregroundStyle(.orange)
-            Text("Sharing isn’t available")
+            Text("Teilen nicht verfügbar")
                 .font(.title2.weight(.semibold))
                 .foregroundStyle(.white)
             Text(message)
@@ -129,7 +129,7 @@ struct ResultsView: View {
                 .foregroundStyle(.white.opacity(0.7))
                 .multilineTextAlignment(.center)
                 .frame(maxWidth: 420)
-            Text("Your photos are still saved on this Mac.")
+            Text("Deine Fotos sind auf diesem Mac gespeichert.")
                 .font(.footnote)
                 .foregroundStyle(.white.opacity(0.5))
         }
@@ -154,13 +154,13 @@ struct ResultsView: View {
                 Button {
                     controller.printStrip()
                 } label: {
-                    Label("Print strip", systemImage: "printer")
+                    Label("Drucken", systemImage: "printer")
                 }
 
                 Button {
                     controller.startCapture()
                 } label: {
-                    Label("New photo", systemImage: "camera")
+                    Label("Neue Fotos", systemImage: "camera")
                 }
             }
             .controlSize(.large)
@@ -170,24 +170,25 @@ struct ResultsView: View {
         }
     }
 
-    /// Spells out the hotkeys so guests know what to press.
+    /// Spells out the hotkeys so guests know what to press — large and readable
+    /// from a step back.
     private var keyHints: some View {
-        HStack(spacing: 18) {
-            hint("return", "Print")
-            hint("space", "New photo")
-            hint("arrow.up.arrow.down", "Change frame")
+        HStack(spacing: 28) {
+            hint("return", "Drucken")
+            hint("space", "Neue Fotos")
+            hint("arrow.up.arrow.down", "Rahmen wechseln")
         }
-        .font(.callout.weight(.medium))
-        .foregroundStyle(.white.opacity(0.75))
+        .font(.system(size: 24, weight: .semibold))
+        .foregroundStyle(.white.opacity(0.85))
     }
 
     private func hint(_ symbol: String, _ label: String) -> some View {
-        HStack(spacing: 6) {
+        HStack(spacing: 10) {
             Image(systemName: symbol)
-                .imageScale(.large)
-                .frame(minWidth: 26, minHeight: 22)
-                .padding(.horizontal, 6).padding(.vertical, 3)
-                .background(.white.opacity(0.12), in: RoundedRectangle(cornerRadius: 6))
+                .font(.system(size: 26, weight: .semibold))
+                .frame(minWidth: 44, minHeight: 36)
+                .padding(.horizontal, 8).padding(.vertical, 4)
+                .background(.white.opacity(0.14), in: RoundedRectangle(cornerRadius: 9))
             Text(label)
         }
     }

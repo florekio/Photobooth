@@ -12,9 +12,9 @@ struct FramePickerView: View {
         if kiosk {
             VStack(spacing: 6) {
                 swatchRow
-                Text("Use ↑ / ↓ to change frame")
-                    .font(.caption.weight(.medium))
-                    .foregroundStyle(.white.opacity(0.75))
+                Text("Rahmen mit ↑ / ↓ wechseln")
+                    .font(.callout.weight(.semibold))
+                    .foregroundStyle(.white.opacity(0.8))
             }
             .padding(.horizontal, 16).padding(.vertical, 10)
             .background(.black.opacity(0.5), in: RoundedRectangle(cornerRadius: 18))
