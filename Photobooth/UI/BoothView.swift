@@ -186,18 +186,27 @@ struct BoothView: View {
                 if event.keyCode == 53 { controller.showingGallery = false; return nil }
                 return event
             }
+            // Arrow keys change the strip frame in any state.
+            if event.keyCode == 126 { controller.cycleFrame(by: -1); return nil }  // ↑ previous
+            if event.keyCode == 125 { controller.cycleFrame(by: +1); return nil }  // ↓ next
+
+            // Results screen: Enter prints, Space starts a new session, Esc closes.
+            if controller.lastResult != nil {
+                switch event.keyCode {
+                case 36: controller.printStrip(); return nil        // Return → print
+                case 49: controller.startCapture(); return nil      // Space → new photo
+                case 53: controller.dismissResult(); return nil     // Esc → back to idle
+                default: return event
+                }
+            }
+
+            // Idle / capturing.
             switch event.keyCode {
             case 49, 36: // Space, Return
                 if !controller.isCapturing { controller.startCapture() }
                 return nil
             case 53: // Escape
                 controller.cancelCapture()
-                return nil
-            case 126: // Up arrow → previous frame
-                controller.cycleFrame(by: -1)
-                return nil
-            case 125: // Down arrow → next frame
-                controller.cycleFrame(by: +1)
                 return nil
             default:
                 return event

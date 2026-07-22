@@ -10,12 +10,19 @@ enum SharePage {
             FileManager.default.fileExists(atPath: folder.appendingPathComponent($0).path)
         }
         let hasVideo = exists("montage.mp4")
-        let hasStrip = exists("strip.png")
+        // Prefer the compressed JPEG (~300 KB) over the lossless PNG (~3.6 MB) for
+        // the phone; fall back to PNG for older sessions that predate the JPEG.
+        let hasJPG = exists("strip.jpg")
+        let hasPNG = exists("strip.png")
+        let hasStrip = hasJPG || hasPNG
         let hasGif = exists("strip.gif")
 
         let base = "/s/\(id)"
         let videoURL = "\(base)/montage.mp4"
-        let stripURL = "\(base)/strip.png"
+        let stripFile = hasJPG ? "strip.jpg" : "strip.png"
+        let stripExt = hasJPG ? "jpg" : "png"
+        let stripType = hasJPG ? "image/jpeg" : "image/png"
+        let stripURL = "\(base)/\(stripFile)"
         let gifURL = "\(base)/strip.gif"
 
         // The animated video strip leads — it's the signature output.
@@ -76,7 +83,7 @@ enum SharePage {
             <button class="btn primary" id="share">Share</button>
             \(hasGif ? "<a class=\"btn secondary\" href=\"\(gifURL)\" download=\"photobooth-\(id).gif\">Download animated strip (GIF)</a>" : "")
             \(hasVideo ? "<a class=\"btn secondary\" href=\"\(videoURL)\" download=\"photobooth-\(id).mp4\">Download video</a>" : "")
-            \(hasStrip ? "<a class=\"btn secondary\" href=\"\(stripURL)\" download=\"photobooth-\(id).png\">Download photo strip</a>" : "")
+            \(hasStrip ? "<a class=\"btn secondary\" href=\"\(stripURL)\" download=\"photobooth-\(id).\(stripExt)\">Download photo strip</a>" : "")
           </div>
           <footer>Made with 📸 Photobooth</footer>
 
@@ -84,7 +91,7 @@ enum SharePage {
             const items = [
               \(hasGif ? "{ url: '\(gifURL)', name: 'photobooth-\(id).gif', type: 'image/gif' }," : "")
               \(hasVideo ? "{ url: '\(videoURL)', name: 'photobooth-\(id).mp4', type: 'video/mp4' }," : "")
-              \(hasStrip ? "{ url: '\(stripURL)', name: 'photobooth-\(id).png', type: 'image/png' }," : "")
+              \(hasStrip ? "{ url: '\(stripURL)', name: 'photobooth-\(id).\(stripExt)', type: '\(stripType)' }," : "")
             ];
             const btn = document.getElementById('share');
             btn.addEventListener('click', async () => {
