@@ -112,7 +112,13 @@ On the **results screen** the keys change to guest actions (also shown on-screen
 | **Esc**     | Back to the idle screen         |
 
 The camera picker and frame picker (bottom of the idle screen) switch inputs and
-frames live; both are hidden while kiosk-locked.
+frames live; both are hidden while kiosk-locked. The idle screen shows a large
+**"Leertaste drücken für Fotos"** prompt so guests know what to press.
+
+> **Guest-facing text is German** (countdowns, results screen, prompts, key legend),
+> since the booth is used at German events. Operator controls stay in English. To
+> re-localize, the strings are inline in `BoothView`, `ResultsView`, and
+> `FramePickerView`.
 
 ### Kiosk mode
 
@@ -132,9 +138,13 @@ auto-selects a printer whose name contains "SELPHY"/"CP1500", else the default
 printer. Unlocked it shows the print dialog (pick paper/borderless the first time);
 kiosk-locked it prints silently so guests just tap once.
 
-The sheet keeps a **6% white safety margin** around the strips (`safeInset` in
-`StripPrinter`) so the SELPHY's borderless overscan trims white rather than cropping
-the frame artwork. Bump it if your printer overscans more aggressively.
+The two strips sit **edge to edge in the middle** (a clean centre cut), with a **6%
+white safety margin only on the outer edges** (`safeInset` in `StripPrinter`) so the
+SELPHY's borderless overscan trims white rather than cropping the frame artwork. Bump
+it if your printer overscans more aggressively.
+
+Pressing **⏎ Enter** on the results screen opens the dialog (unlocked) — a second
+**Enter confirms** it, and repeat presses are ignored so it can't stack dialogs.
 
 ## Output
 
