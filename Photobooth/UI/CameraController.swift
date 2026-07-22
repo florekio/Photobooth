@@ -104,6 +104,7 @@ final class CameraController {
             let strip = try PhotoStripRenderer().render(result, frame: selectedFrameURL)
             result.stripPDF = strip.pdf
             result.stripPNG = strip.png
+            result.stripJPG = strip.jpg
             result.frameURL = selectedFrameURL
             result.store.saveFrameRef(selectedFrameURL)
             lastResult = result
@@ -209,6 +210,7 @@ final class CameraController {
             let strip = try PhotoStripRenderer().render(result, frame: selectedFrameURL)
             result.stripPDF = strip.pdf
             result.stripPNG = strip.png
+            result.stripJPG = strip.jpg
             result.frameURL = selectedFrameURL
             result.store.saveFrameRef(selectedFrameURL)
         } catch {

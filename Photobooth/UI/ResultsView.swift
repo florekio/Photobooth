@@ -147,23 +147,48 @@ struct ResultsView: View {
     // MARK: - Operator actions
 
     private var operatorActions: some View {
-        HStack(spacing: 16) {
-            // Prints two strips on one 4×6" sheet. Available to guests even in
-            // kiosk lock, where it prints silently straight to the SELPHY.
-            Button {
-                controller.printStrip()
-            } label: {
-                Label("Print strip", systemImage: "printer")
-            }
+        VStack(spacing: 14) {
+            HStack(spacing: 16) {
+                // Prints two strips on one 4×6" sheet. Available to guests even in
+                // kiosk lock, where it prints silently straight to the SELPHY.
+                Button {
+                    controller.printStrip()
+                } label: {
+                    Label("Print strip", systemImage: "printer")
+                }
 
-            Button {
-                controller.dismissResult()
-            } label: {
-                Label("Done", systemImage: "checkmark")
+                Button {
+                    controller.startCapture()
+                } label: {
+                    Label("New photo", systemImage: "camera")
+                }
             }
-            .keyboardShortcut(.defaultAction)
+            .controlSize(.large)
+            .buttonStyle(.borderedProminent)
+
+            keyHints
         }
-        .controlSize(.large)
-        .buttonStyle(.borderedProminent)
+    }
+
+    /// Spells out the hotkeys so guests know what to press.
+    private var keyHints: some View {
+        HStack(spacing: 18) {
+            hint("return", "Print")
+            hint("space", "New photo")
+            hint("arrow.up.arrow.down", "Change frame")
+        }
+        .font(.callout.weight(.medium))
+        .foregroundStyle(.white.opacity(0.75))
+    }
+
+    private func hint(_ symbol: String, _ label: String) -> some View {
+        HStack(spacing: 6) {
+            Image(systemName: symbol)
+                .imageScale(.large)
+                .frame(minWidth: 26, minHeight: 22)
+                .padding(.horizontal, 6).padding(.vertical, 3)
+                .background(.white.opacity(0.12), in: RoundedRectangle(cornerRadius: 6))
+            Text(label)
+        }
     }
 }

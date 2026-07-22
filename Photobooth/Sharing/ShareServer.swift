@@ -161,6 +161,9 @@ final class ShareServer {
         case "strip.png":
             return fileResponse(folder.appendingPathComponent("strip.png"),
                                 type: "image/png", range: range)
+        case "strip.jpg":
+            return fileResponse(folder.appendingPathComponent("strip.jpg"),
+                                type: "image/jpeg", range: range)
         case "strip.gif":
             return fileResponse(folder.appendingPathComponent("strip.gif"),
                                 type: "image/gif", range: range)

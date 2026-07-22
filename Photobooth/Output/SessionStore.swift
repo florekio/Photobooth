@@ -55,6 +55,9 @@ struct SessionStore {
     var montageURL: URL { root.appendingPathComponent("montage.mp4") }
     var stripPDFURL: URL { root.appendingPathComponent("strip.pdf") }
     var stripPNGURL: URL { root.appendingPathComponent("strip.png") }
+    /// Compressed JPEG of the strip for phone download/sharing (PNG is kept for
+    /// lossless printing).
+    var stripJPGURL: URL { root.appendingPathComponent("strip.jpg") }
     var stripGIFURL: URL { root.appendingPathComponent("strip.gif") }
     var frameRefURL: URL { root.appendingPathComponent("frame.txt") }
 

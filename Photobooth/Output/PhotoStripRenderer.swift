@@ -16,16 +16,24 @@ struct PhotoStripRenderer {
     /// Print size for the PDF, in points (2×6" at 72pt/in).
     var pdfSize = CGSize(width: 144, height: 432)
 
-    struct Output { let pdf: URL; let png: URL }
+    struct Output { let pdf: URL; let png: URL; let jpg: URL }
+
+    /// JPEG quality for the shared/downloaded strip (PNG stays lossless for print).
+    var jpegQuality: CGFloat = 0.85
 
     func render(_ result: SessionResult, frame: URL? = nil) throws -> Output {
         let images = result.photos.compactMap { loadCGImage($0) }
         guard !images.isEmpty else { throw CaptureError.writerFailed("no photos to render") }
         let frameImage = frame.flatMap { loadCGImage($0) }
+        let footer = footerText(result)
 
-        let pdf = try renderPDF(images: images, frame: frameImage, footer: footerText(result), to: result.store.stripPDFURL)
-        let png = try renderPNG(images: images, frame: frameImage, footer: footerText(result), to: result.store.stripPNGURL)
-        return Output(pdf: pdf, png: png)
+        let pdf = try renderPDF(images: images, frame: frameImage, footer: footer, to: result.store.stripPDFURL)
+        // Render the raster strip once, then emit a lossless PNG (for print) and a
+        // small JPEG (for phone download/share).
+        let strip = try makeStripImage(images: images, frame: frameImage, footer: footer)
+        let png = try write(strip, to: result.store.stripPNGURL, type: UTType.png, quality: nil)
+        let jpg = try write(strip, to: result.store.stripJPGURL, type: UTType.jpeg, quality: jpegQuality)
+        return Output(pdf: pdf, png: png, jpg: jpg)
     }
 
     // MARK: - Drawing (design coordinates, bottom-left origin)
@@ -103,7 +111,8 @@ struct PhotoStripRenderer {
         return url
     }
 
-    private func renderPNG(images: [CGImage], frame: CGImage?, footer: String, to url: URL) throws -> URL {
+    /// Rasterize the strip into a single CGImage at `pngScale` (→ 1200×3600).
+    private func makeStripImage(images: [CGImage], frame: CGImage?, footer: String) throws -> CGImage {
         let pxW = Int(StripLayout.designSize.width * pngScale)
         let pxH = Int(StripLayout.designSize.height * pngScale)
         guard let ctx = CGContext(
@@ -114,12 +123,22 @@ struct PhotoStripRenderer {
         }
         ctx.scaleBy(x: pngScale, y: pngScale)
         draw(in: ctx, images: images, frame: frame, footer: footer)
-        guard let image = ctx.makeImage(),
-              let dest = CGImageDestinationCreateWithURL(url as CFURL, UTType.png.identifier as CFString, 1, nil) else {
-            throw CaptureError.writerFailed("could not finalize PNG")
+        guard let image = ctx.makeImage() else {
+            throw CaptureError.writerFailed("could not rasterize strip")
         }
-        CGImageDestinationAddImage(dest, image, nil)
-        CGImageDestinationFinalize(dest)
+        return image
+    }
+
+    /// Encode a CGImage to `url`. `quality` nil → lossless (PNG); set → JPEG.
+    private func write(_ image: CGImage, to url: URL, type: UTType, quality: CGFloat?) throws -> URL {
+        guard let dest = CGImageDestinationCreateWithURL(url as CFURL, type.identifier as CFString, 1, nil) else {
+            throw CaptureError.writerFailed("could not create image destination")
+        }
+        let options = quality.map { [kCGImageDestinationLossyCompressionQuality: $0] as CFDictionary }
+        CGImageDestinationAddImage(dest, image, options)
+        guard CGImageDestinationFinalize(dest) else {
+            throw CaptureError.writerFailed("could not finalize \(url.lastPathComponent)")
+        }
         return url
     }
 

@@ -57,7 +57,12 @@ enum StripPrinter {
         op.run()
     }
 
-    /// Tile the strip twice, left and right, into one 4×6 sheet image.
+    /// Fraction of the sheet kept as a white safety margin on every edge, so the
+    /// SELPHY's borderless overscan crops into white instead of the frame artwork.
+    private static let safeInset: CGFloat = 0.06
+
+    /// Tile the strip twice, left and right, into one 4×6 sheet image, each strip
+    /// inset by `safeInset` so nothing important is lost to borderless overscan.
     private static func doubleUp(_ strip: CGImage) -> CGImage? {
         let w = strip.width, h = strip.height
         guard let ctx = CGContext(
@@ -66,8 +71,13 @@ enum StripPrinter {
             bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue) else { return nil }
         ctx.setFillColor(NSColor.white.cgColor)
         ctx.fill(CGRect(x: 0, y: 0, width: w * 2, height: h))
-        ctx.draw(strip, in: CGRect(x: 0, y: 0, width: w, height: h))
-        ctx.draw(strip, in: CGRect(x: w, y: 0, width: w, height: h))
+
+        // Uniform scale-down, centered in each half, leaving a white margin.
+        let scale = 1 - 2 * safeInset
+        let dw = CGFloat(w) * scale, dh = CGFloat(h) * scale
+        let mx = (CGFloat(w) - dw) / 2, my = (CGFloat(h) - dh) / 2
+        ctx.draw(strip, in: CGRect(x: mx, y: my, width: dw, height: dh))
+        ctx.draw(strip, in: CGRect(x: CGFloat(w) + mx, y: my, width: dw, height: dh))
         return ctx.makeImage()
     }
 

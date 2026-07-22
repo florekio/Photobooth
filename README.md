@@ -102,6 +102,15 @@ access — grant both. If you miss the prompt, enable them under
 | **↑ / ↓**       | Previous / next strip frame (works while locked)    |
 | **⌘L**          | Toggle kiosk lock (PIN to unlock — see below)       |
 
+On the **results screen** the keys change to guest actions (also shown on-screen):
+
+| Key         | Action                          |
+| ----------- | ------------------------------- |
+| **⏎ Enter** | Print the strip                 |
+| **Space**   | New photo (start a new session) |
+| **↑ / ↓**   | Change the frame (re-renders)   |
+| **Esc**     | Back to the idle screen         |
+
 The camera picker and frame picker (bottom of the idle screen) switch inputs and
 frames live; both are hidden while kiosk-locked.
 
@@ -123,6 +132,10 @@ auto-selects a printer whose name contains "SELPHY"/"CP1500", else the default
 printer. Unlocked it shows the print dialog (pick paper/borderless the first time);
 kiosk-locked it prints silently so guests just tap once.
 
+The sheet keeps a **6% white safety margin** around the strips (`safeInset` in
+`StripPrinter`) so the SELPHY's borderless overscan trims white rather than cropping
+the frame artwork. Bump it if your printer overscans more aggressively.
+
 ## Output
 
 Each session writes to a timestamped folder:
@@ -134,7 +147,8 @@ Each session writes to a timestamped folder:
   after_1.mov  … after_4.mov    # 3s clip recorded after each photo
   montage.mp4                   # stitched: before → photo freeze → after, ×4
   strip.pdf                     # print-ready vertical photo strip
-  strip.png                     # same strip as an image
+  strip.png                     # same strip, lossless (used for printing)
+  strip.jpg                     # compressed strip (~330 KB) for phone download/share
   strip.gif                     # animated "video strip" (4 looping cells) for the share page
 ```
 
@@ -143,8 +157,9 @@ Each session writes to a timestamped folder:
 When a session finishes, the results screen shows a **QR code**. A guest scans it
 with their phone and lands on a mobile page that shows the **animated video
 strip** (a looping GIF of the 4-cell strip), plays the full montage, and offers
-**Download** and a native **Share** button (the phone's own share sheet via the
-Web Share API). No accounts, no cloud storage, no cost.
+**Download** buttons (the compressed **JPEG** strip, the **video**, and the **GIF**)
+plus a native **Share** button (the phone's own share sheet via the Web Share API).
+No accounts, no cloud storage, no cost.
 
 How it works (all free):
 
